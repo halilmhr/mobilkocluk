@@ -47,6 +47,7 @@ import { AISummaryPanel } from '../components/AISummaryPanel';
 import { CompactStudentList } from '../components/CompactStudentList';
 import { PerformanceChart } from '../components/PerformanceChart';
 import { DailyCoachingStatus } from '../components/DailyCoachingStatus';
+import { AIAnalysisModal } from '../components/AIAnalysisModal';
 import { PREMIUM_COLORS } from '../styles/premiumStyles';
 import {
     getTodayRiskStudentsCount,
@@ -319,6 +320,7 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
     const [expandedAssignmentId, setExpandedAssignmentId] = useState<string | null>(null);
     const [assignmentFlow, setAssignmentFlow] = useState<'select' | 'standard' | 'ai' | 'book' | 'topic'>('select');
     const [topicFlowSubject, setTopicFlowSubject] = useState<string | null>(null);
+    const [showAIAnalysisModal, setShowAIAnalysisModal] = useState(false);
     const scrollRef = useRef<ScrollView>(null);
 
     // Sync form fields when student is selected
@@ -737,7 +739,6 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
 
     return (
         <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
@@ -818,23 +819,10 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
                             behindStudents={myStudents.filter(s => {
                                 const riskInfo = getStudentRiskInfo(s);
                                 return riskInfo.label === 'Kritik' || riskInfo.label === 'Dikkat';
-                            }).map(s => {
-                                const riskInfo = getStudentRiskInfo(s);
-                                const reasons = [];
-                                if (riskInfo.passiveDays >= 3) {
-                                    reasons.push(`${riskInfo.passiveDays} gündür inaktif`);
-                                }
-                                if (riskInfo.overdueCount > 0) {
-                                    reasons.push(`${riskInfo.overdueCount} görev gecikmiş`);
-                                }
-                                if (riskInfo.weeklyCompletionRate < 50) {
-                                    reasons.push(`Haftalık tamamlama: %${riskInfo.weeklyCompletionRate}`);
-                                }
-                                return {
-                                    name: s.name,
-                                    detail: reasons.length > 0 ? reasons.join(' • ') : `Risk: ${riskInfo.label}`
-                                };
-                            })}
+                            }).map(s => ({
+                                name: s.name,
+                                detail: `Risk: ${getStudentRiskInfo(s).label}`
+                            }))}
                             overdueItems={premiumStats.overdueTasks.map(t => ({
                                 name: t.studentName,
                                 detail: `${t.title} - ${new Date(t.dueDate).toLocaleDateString('tr-TR')}`
@@ -851,9 +839,7 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
                             totalOverdueTasks={getTotalOverdueCount(myStudents)}
                             mostActiveStudent={getMostActiveStudent(myStudents)}
                             lastUpdate={lastAnalysis}
-                            onViewDetails={() => {
-                                Alert.alert('AI Analizi', 'Detaylı AI analizi yakında aktif olacak.');
-                            }}
+                            onViewDetails={() => setShowAIAnalysisModal(true)}
                         />
 
                         {/* Add Student Button - Subtle placement */}
@@ -1974,6 +1960,35 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
                     <Text style={styles.buttonText}>Öğrenci Ekle</Text>
                 </Button>
             </Modal >
+
+            {/* AI Analysis Modal */}
+            <AIAnalysisModal
+                visible={showAIAnalysisModal}
+                onClose={() => setShowAIAnalysisModal(false)}
+                weeklyActivityChange={premiumStats.weeklyChange}
+                totalOverdueTasks={getTotalOverdueCount(myStudents)}
+                studentCount={myStudents.length}
+                criticalCount={getCriticalStudentsCount(myStudents)}
+                activeStudents={premiumStats.activeStudents}
+                avgCompletionRate={premiumStats.weeklyCompletionRate}
+                topStudents={sortStudentsByRisk(myStudents)
+                    .map(s => ({ name: s.name, rate: getStudentRiskInfo(s).weeklyCompletionRate }))
+                    .sort((a, b) => b.rate - a.rate)
+                    .slice(0, 3)}
+                atRiskStudents={sortStudentsByRisk(myStudents)
+                    .filter(s => {
+                        const riskInfo = getStudentRiskInfo(s);
+                        return riskInfo.label === 'Kritik' || riskInfo.label === 'Dikkat';
+                    })
+                    .map(s => {
+                        const riskInfo = getStudentRiskInfo(s);
+                        const reasons = [];
+                        if (riskInfo.passiveDays >= 3) reasons.push(`${riskInfo.passiveDays} gündür inaktif`);
+                        if (riskInfo.overdueCount > 0) reasons.push(`${riskInfo.overdueCount} görev gecikmiş`);
+                        return { name: s.name, reason: reasons.join(' • ') || riskInfo.label };
+                    })
+                    .slice(0, 3)}
+            />
 
             {/* Add Assignment Modal */}
             < Modal

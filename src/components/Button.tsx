@@ -6,7 +6,8 @@ import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 
 interface ButtonProps {
-    title: string;
+    title?: string;
+    children?: React.ReactNode;
     onPress: () => void;
     variant?: 'primary' | 'secondary' | 'outline';
     disabled?: boolean;
@@ -16,6 +17,7 @@ interface ButtonProps {
 
 export const Button: React.FC<ButtonProps> = ({
     title,
+    children,
     onPress,
     variant = 'primary',
     disabled = false,
@@ -42,6 +44,9 @@ export const Button: React.FC<ButtonProps> = ({
         }
     };
 
+    // Support both title prop and children
+    const content = title || children;
+
     return (
         <TouchableOpacity
             style={[
@@ -54,9 +59,13 @@ export const Button: React.FC<ButtonProps> = ({
             disabled={disabled}
             activeOpacity={0.8}
         >
-            <Text style={[getTextStyle(), disabled && styles.disabledText, textStyle]}>
-                {title}
-            </Text>
+            {typeof content === 'string' ? (
+                <Text style={[getTextStyle(), disabled && styles.disabledText, textStyle]}>
+                    {content}
+                </Text>
+            ) : (
+                content
+            )}
         </TouchableOpacity>
     );
 };

@@ -1,0 +1,104 @@
+
+Branch:
+Name  preview
+ID    019c2a6b-af9f-7738-af85-e118dee12f76
+
+Recent update groups:
+
+Platforms                 android, ios
+Runtime Version           1.0.0
+Message                   "Elite Coach Control Center V3 - Preview Deployment" (1 hour ago by halil.adiyaman2)
+Code Signing Key          N/A
+Is Roll Back to Embedded  No
+Rollout Percentage        N/A
+Group ID                  a47f8071-5830-4d5e-ac8a-2d43f9137803
+
+ÔÇöÔÇöÔÇö
+
+Platforms                 android, ios
+Runtime Version           1.0.0
+Message                   "Premium Coach Dashboard v2" (2 hours ago by halil.adiyaman2)
+Code Signing Key          N/A
+Is Roll Back to Embedded  No
+Rollout Percentage        N/A
+Group ID                  fcdb5327-72d5-4d11-a5e5-c10118e1acb7
+
+ÔÇöÔÇöÔÇö
+
+Platforms                 android, ios
+Runtime Version           1.0.0
+Message                   "Add pull-to-refresh to Coach Dashboard" (3 hours ago by halil.adiyaman2)
+Code Signing Key          N/A
+Is Roll Back to Embedded  No
+Rollout Percentage        N/A
+Group ID                  ecbe1c71-c26b-4b27-8acd-5a419f19bb38
+
+ÔÇöÔÇöÔÇö
+
+Platforms                 android, ios
+Runtime Version           1.0.0
+Message                   "Add last_active tracking for student inactivity (3 days)" (3 hours ago by halil.adiyaman2)
+Code Signing Key          N/A
+Is Roll Back to Embedded  No
+Rollout Percentage        N/A
+Group ID                  6a1ad10b-544d-47c5-808e-957cf5f69a33
+
+ÔÇöÔÇöÔÇö
+
+Platforms                 android, ios
+Runtime Version           1.0.0
+Message                   "Fix inactive student detection: now checks last 4 days activity" (3 hours ago by halil.adiyaman2)
+Code Signing Key          N/A
+Is Roll Back to Embedded  No
+Rollout Percentage        N/A
+Group ID                  8b1a90b6-8e91-4b41-ab7f-fb2cc1f2d402
+
+ÔÇöÔÇöÔÇö
+
+Platforms                 android, ios
+Runtime Version           1.0.0
+Message                   "Dashboard: removed hero, clickable coaching stats with detail modals" (4 hours ago by halil.adiyaman2)
+Code Signing Key          N/A
+Is Roll Back to Embedded  No
+Rollout Percentage        N/A
+Group ID                  194cbd3e-62f4-4fd8-88e6-8230091af591
+
+ÔÇöÔÇöÔÇö
+
+Platforms                 android, ios
+Runtime Version           1.0.0
+Message                   "UI: colorful topics, faster assignment, book cards improved" (4 hours ago by halil.adiyaman2)
+Code Signing Key          N/A
+Is Roll Back to Embedded  No
+Rollout Percentage        N/A
+Group ID                  224ed8d1-606c-4261-87cf-ec6bdc9ba71f
+
+ÔÇöÔÇöÔÇö
+
+Platforms                 android, ios
+Runtime Version           1.0.0
+Message                   "Fix addBook: let Supabase generate UUID + better error handling" (4 hours ago by halil.adiyaman2)
+Code Signing Key          N/A
+Is Roll Back to Embedded  No
+Rollout Percentage        N/A
+Group ID                  b414bc11-12b1-4a56-913d-c680dad0e55a
+
+ÔÇöÔÇöÔÇö
+
+Platforms                 android, ios
+Runtime Version           1.0.0
+Message                   "Fix book loading with topics, subject, toc_image_uri fields" (4 hours ago by halil.adiyaman2)
+Code Signing Key          N/A
+Is Roll Back to Embedded  No
+Rollout Percentage        N/A
+Group ID                  7d9df2c6-eb2e-43c7-bea8-a3dfd4c26e28
+
+ÔÇöÔÇöÔÇö
+
+Platforms                 android, ios
+Runtime Version           1.0.0
+Message                   "Multi-page TOC: accumulate topics from multiple photos + save button" (4 hours ago by halil.adiyaman2)
+Code Signing Key          N/A
+Is Roll Back to Embedded  No
+Rollout Percentage        N/A
+Group ID                  ef8ff2d1-f5c3-4959-b196-c8e47c605512

@@ -1,6 +1,7 @@
 /**
- * Premium Login Screen - Elite Coach Control Center
- * Modern dark theme with glassmorphism and premium styling
+ * Premium Login Screen - CoreHub Style
+ * Modern dark theme with aura effects, role selection, and gradient styling
+ * Matching the giris.html design
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -36,19 +37,23 @@ type Props = {
 };
 
 export const LoginScreen: React.FC<Props> = ({ navigation, route }) => {
-    const { role } = route.params;
+    const { role: initialRole } = route.params;
     const { login } = useApp();
 
+    const [role, setRole] = useState<'student' | 'coach'>(initialRole);
     const isCoach = role === 'coach';
+
     const [email, setEmail] = useState(isCoach ? 'halilay45@gmail.com' : '');
     const [password, setPassword] = useState(isCoach ? '123456' : '');
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(null);
 
     // Animations
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(30)).current;
-    const pulseAnim = useRef(new Animated.Value(1)).current;
+    const auraAnim = useRef(new Animated.Value(1)).current;
+    const formSlideAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         Animated.parallel([
@@ -64,15 +69,15 @@ export const LoginScreen: React.FC<Props> = ({ navigation, route }) => {
             }),
         ]).start();
 
-        // Pulse animation for logo
+        // Aura pulse animation
         Animated.loop(
             Animated.sequence([
-                Animated.timing(pulseAnim, {
+                Animated.timing(auraAnim, {
                     toValue: 1.05,
                     duration: 2000,
                     useNativeDriver: true,
                 }),
-                Animated.timing(pulseAnim, {
+                Animated.timing(auraAnim, {
                     toValue: 1,
                     duration: 2000,
                     useNativeDriver: true,
@@ -80,6 +85,35 @@ export const LoginScreen: React.FC<Props> = ({ navigation, route }) => {
             ])
         ).start();
     }, []);
+
+    // Role change animation
+    const handleRoleChange = (newRole: 'student' | 'coach') => {
+        if (role === newRole) return;
+
+        // Animate form
+        Animated.sequence([
+            Animated.timing(formSlideAnim, {
+                toValue: 10,
+                duration: 100,
+                useNativeDriver: true,
+            }),
+            Animated.timing(formSlideAnim, {
+                toValue: 0,
+                duration: 200,
+                useNativeDriver: true,
+            }),
+        ]).start();
+
+        setRole(newRole);
+        // Update credentials based on role
+        if (newRole === 'coach') {
+            setEmail('halilay45@gmail.com');
+            setPassword('123456');
+        } else {
+            setEmail('');
+            setPassword('');
+        }
+    };
 
     const handleLogin = async () => {
         if (!email.trim() || !password.trim()) {
@@ -105,80 +139,198 @@ export const LoginScreen: React.FC<Props> = ({ navigation, route }) => {
         }
     };
 
+    // Dynamic colors based on role
+    const colors = isCoach
+        ? {
+            primary: '#d946ef',
+            secondary: '#ec4899',
+            glow: 'rgba(147, 51, 234, 0.3)',
+            gradient: ['#9333ea', '#d946ef', '#ec4899'],
+        }
+        : {
+            primary: '#22d3ee',
+            secondary: '#3b82f6',
+            glow: 'rgba(30, 58, 138, 0.3)',
+            gradient: ['#3b82f6', '#22d3ee', '#6366f1'],
+        };
+
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="light-content" backgroundColor="#0a0f1a" />
+            <StatusBar barStyle="light-content" backgroundColor="#010103" />
 
-            {/* Background Gradient Orbs */}
-            <View style={styles.bgOrb1} />
-            <View style={styles.bgOrb2} />
-            <View style={styles.bgOrb3} />
+            {/* Aura Background */}
+            <Animated.View
+                style={[
+                    styles.auraBg,
+                    {
+                        backgroundColor: colors.glow,
+                        transform: [{ scale: auraAnim }]
+                    }
+                ]}
+            />
+
+            {/* Grid Background */}
+            <View style={styles.gridBg} />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.content}
             >
+                {/* Header */}
                 <Animated.View style={[
-                    styles.mainCard,
-                    {
-                        opacity: fadeAnim,
-                        transform: [{ translateY: slideAnim }]
-                    }
+                    styles.header,
+                    { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
                 ]}>
-                    {/* Back Button */}
-                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                        <Text style={styles.backIcon}>←</Text>
-                        <Text style={styles.backText}>Geri</Text>
+                    <View style={styles.logoWrapper}>
+                        <View style={[styles.logoGlow, { backgroundColor: colors.primary }]} />
+                        <View style={styles.logoContainer}>
+                            <Text style={[styles.logoIcon, { color: colors.primary }]}>◉</Text>
+                        </View>
+                    </View>
+                    <Text style={styles.appTitle}>
+                        CORE<Text style={[styles.appTitleAccent, { color: colors.primary }]}>HUB</Text>
+                    </Text>
+                </Animated.View>
+
+                {/* Role Selector */}
+                <Animated.View style={[
+                    styles.roleSelector,
+                    { opacity: fadeAnim }
+                ]}>
+                    {/* Student Button */}
+                    <TouchableOpacity
+                        style={[
+                            styles.roleBtn,
+                            role === 'student' && styles.roleBtnActive,
+                            role !== 'student' && styles.roleBtnInactive,
+                        ]}
+                        onPress={() => handleRoleChange('student')}
+                        activeOpacity={0.8}
+                    >
+                        {role === 'student' && (
+                            <View style={styles.roleBtnGradient}>
+                                <View style={[styles.gradientInner, { backgroundColor: '#3b82f6' }]} />
+                            </View>
+                        )}
+                        <View style={styles.roleBtnContent}>
+                            <Text style={[
+                                styles.roleIcon,
+                                { color: role === 'student' ? '#000' : '#22d3ee' }
+                            ]}>🎓</Text>
+                            <Text style={[
+                                styles.roleLabel,
+                                { color: role === 'student' ? '#000' : '#fff' }
+                            ]}>ÖĞRENCİ</Text>
+                        </View>
                     </TouchableOpacity>
 
-                    {/* Logo Section */}
-                    <Animated.View style={[styles.logoSection, { transform: [{ scale: pulseAnim }] }]}>
-                        <View style={styles.logoContainer}>
-                            <Text style={styles.logoIcon}>{isCoach ? '🎓' : '📚'}</Text>
+                    {/* Coach Button */}
+                    <TouchableOpacity
+                        style={[
+                            styles.roleBtn,
+                            role === 'coach' && styles.roleBtnActive,
+                            role !== 'coach' && styles.roleBtnInactive,
+                        ]}
+                        onPress={() => handleRoleChange('coach')}
+                        activeOpacity={0.8}
+                    >
+                        {role === 'coach' && (
+                            <View style={styles.roleBtnGradient}>
+                                <View style={[styles.gradientInner, { backgroundColor: '#9333ea' }]} />
+                            </View>
+                        )}
+                        <View style={styles.roleBtnContent}>
+                            <Text style={[
+                                styles.roleIcon,
+                                { color: role === 'coach' ? '#000' : '#d946ef' }
+                            ]}>👥</Text>
+                            <Text style={[
+                                styles.roleLabel,
+                                { color: role === 'coach' ? '#000' : '#fff' }
+                            ]}>KOÇ</Text>
                         </View>
-                        <Text style={styles.appName}>Elite Coach</Text>
-                        <Text style={styles.subtitle}>
-                            {isCoach ? 'Koç Kontrol Merkezi' : 'Öğrenci Paneli'}
-                        </Text>
-                    </Animated.View>
+                    </TouchableOpacity>
+                </Animated.View>
 
-                    {/* Form */}
-                    <View style={styles.form}>
-                        {/* Email Input */}
-                        <View style={[
-                            styles.inputContainer,
-                            focusedField === 'email' && styles.inputFocused
-                        ]}>
-                            <Text style={styles.inputIcon}>📧</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="E-posta adresiniz"
-                                placeholderTextColor="#6b7280"
-                                value={email}
-                                onChangeText={setEmail}
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                                onFocus={() => setFocusedField('email')}
-                                onBlur={() => setFocusedField(null)}
-                            />
+                {/* Login Form Card */}
+                <Animated.View style={[
+                    styles.formCard,
+                    {
+                        opacity: fadeAnim,
+                        transform: [
+                            { translateY: slideAnim },
+                            { translateX: formSlideAnim }
+                        ]
+                    }
+                ]}>
+                    {/* Top Gradient Border */}
+                    <View style={[styles.topBorder, { backgroundColor: colors.primary }]} />
+
+                    {/* Form Content */}
+                    <View style={styles.formContent}>
+                        {/* Title */}
+                        <View style={styles.formHeader}>
+                            <Text style={styles.formTitle}>
+                                {isCoach ? 'Koç' : 'Giriş'}{' '}
+                                <Text style={[styles.formTitleAccent, { color: colors.primary }]}>PANELİ</Text>
+                            </Text>
+                            <Text style={styles.formSubtitle}>// AUTH_READY</Text>
                         </View>
 
-                        {/* Password Input */}
-                        <View style={[
-                            styles.inputContainer,
-                            focusedField === 'password' && styles.inputFocused
-                        ]}>
-                            <Text style={styles.inputIcon}>🔐</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Şifreniz"
-                                placeholderTextColor="#6b7280"
-                                value={password}
-                                onChangeText={setPassword}
-                                secureTextEntry
-                                onFocus={() => setFocusedField('password')}
-                                onBlur={() => setFocusedField(null)}
-                            />
+                        {/* Inputs */}
+                        <View style={styles.inputsContainer}>
+                            {/* Email */}
+                            <View style={[
+                                styles.inputWrapper,
+                                focusedField === 'email' && styles.inputFocused
+                            ]}>
+                                <View style={[
+                                    styles.inputIconContainer,
+                                    focusedField === 'email' && styles.inputIconFocused
+                                ]}>
+                                    <Text style={[styles.inputIcon, { color: colors.primary }]}>👤</Text>
+                                </View>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder={isCoach ? 'Koç ID veya e-posta' : 'Kullanıcı adı veya e-posta'}
+                                    placeholderTextColor="#6b7280"
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    onFocus={() => setFocusedField('email')}
+                                    onBlur={() => setFocusedField(null)}
+                                />
+                            </View>
+
+                            {/* Password */}
+                            <View style={[
+                                styles.inputWrapper,
+                                focusedField === 'password' && styles.inputFocused
+                            ]}>
+                                <View style={[
+                                    styles.inputIconContainer,
+                                    focusedField === 'password' && styles.inputIconFocused
+                                ]}>
+                                    <Text style={[styles.inputIcon, { color: colors.primary }]}>🔒</Text>
+                                </View>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Şifre"
+                                    placeholderTextColor="#6b7280"
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    secureTextEntry={!showPassword}
+                                    onFocus={() => setFocusedField('password')}
+                                    onBlur={() => setFocusedField(null)}
+                                />
+                                <TouchableOpacity
+                                    style={styles.eyeButton}
+                                    onPress={() => setShowPassword(!showPassword)}
+                                >
+                                    <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
 
                         {/* Login Button */}
@@ -188,32 +340,51 @@ export const LoginScreen: React.FC<Props> = ({ navigation, route }) => {
                             disabled={loading}
                             activeOpacity={0.8}
                         >
-                            <Text style={styles.loginButtonText}>
-                                {loading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
-                            </Text>
-                            {!loading && <Text style={styles.loginButtonArrow}>→</Text>}
+                            <View style={[styles.loginBtnGradient, { backgroundColor: colors.primary }]} />
+                            <View style={styles.loginBtnInner}>
+                                <Text style={styles.loginBtnText}>
+                                    {loading ? 'GİRİŞ YAPILIYOR...' : 'OTURUM AÇ'}
+                                </Text>
+                                {!loading && (
+                                    <Text style={[styles.loginBtnArrow, { color: colors.primary }]}>→</Text>
+                                )}
+                            </View>
                         </TouchableOpacity>
-                    </View>
 
-                    {/* Demo Info */}
-                    <View style={styles.demoSection}>
-                        <View style={styles.demoHeader}>
-                            <View style={styles.demoDot} />
-                            <Text style={styles.demoLabel}>Demo Hesabı</Text>
+                        {/* Footer Links */}
+                        <View style={styles.footerLinks}>
+                            <TouchableOpacity>
+                                <Text style={styles.footerLink}>DESTEK</Text>
+                            </TouchableOpacity>
+                            <View style={styles.registerContainer}>
+                                <Text style={[styles.sparkle, { color: colors.primary }]}>✦</Text>
+                                <TouchableOpacity>
+                                    <Text style={styles.registerLink}>KAYIT OL</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
-                        <Text style={styles.demoText}>
-                            {isCoach ? 'halilay45@gmail.com' : 'ogrenci@example.com'}
-                        </Text>
-                        <Text style={styles.demoText}>
-                            Şifre: {isCoach ? '123456' : 'sifre'}
-                        </Text>
                     </View>
+                </Animated.View>
 
-                    {/* Footer */}
-                    <View style={styles.footer}>
-                        <Text style={styles.footerText}>Powered by</Text>
-                        <Text style={styles.footerBrand}>Elite Coach AI</Text>
-                    </View>
+                {/* Bottom Actions */}
+                <Animated.View style={[
+                    styles.bottomActions,
+                    { opacity: fadeAnim }
+                ]}>
+                    <TouchableOpacity style={styles.bottomBtn}>
+                        <Text style={styles.bottomBtnIcon}>🔐</Text>
+                        <Text style={styles.bottomBtnLabel}>BIOMETRIC</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.bottomBtn}>
+                        <Text style={styles.bottomBtnIcon}>✉️</Text>
+                        <Text style={styles.bottomBtnLabel}>İLETİŞİM</Text>
+                    </TouchableOpacity>
+                </Animated.View>
+
+                {/* Footer */}
+                <Animated.View style={[styles.footer, { opacity: fadeAnim }]}>
+                    <Text style={[styles.footerIcon, { color: colors.primary }]}>⚡</Text>
+                    <Text style={styles.footerText}>FAST_CORE_v2.1</Text>
                 </Animated.View>
             </KeyboardAvoidingView>
         </View>
@@ -223,188 +394,293 @@ export const LoginScreen: React.FC<Props> = ({ navigation, route }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0a0f1a',
+        backgroundColor: '#010103',
     },
-    bgOrb1: {
+    auraBg: {
         position: 'absolute',
-        width: 300,
-        height: 300,
-        borderRadius: 150,
-        backgroundColor: 'rgba(139, 92, 246, 0.15)',
-        top: -100,
-        left: -100,
+        top: '-25%',
+        left: '-25%',
+        width: width * 1.5,
+        height: height * 0.8,
+        borderRadius: 9999,
+        opacity: 0.6,
     },
-    bgOrb2: {
+    gridBg: {
         position: 'absolute',
-        width: 250,
-        height: 250,
-        borderRadius: 125,
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        bottom: 100,
-        right: -80,
-    },
-    bgOrb3: {
-        position: 'absolute',
-        width: 200,
-        height: 200,
-        borderRadius: 100,
-        backgroundColor: 'rgba(16, 185, 129, 0.08)',
-        bottom: -50,
-        left: 50,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        opacity: 0.03,
     },
     content: {
         flex: 1,
-        justifyContent: 'center',
         paddingHorizontal: 24,
+        paddingTop: 60,
     },
-    mainCard: {
-        backgroundColor: 'rgba(17, 24, 39, 0.9)',
-        borderRadius: 24,
-        padding: 28,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 20 },
-        shadowOpacity: 0.5,
-        shadowRadius: 40,
-        elevation: 20,
-    },
-    backButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    backIcon: {
-        color: '#60a5fa',
-        fontSize: 20,
-        marginRight: 6,
-    },
-    backText: {
-        color: '#60a5fa',
-        fontSize: 14,
-        fontWeight: '500',
-    },
-    logoSection: {
+    header: {
         alignItems: 'center',
         marginBottom: 32,
     },
-    logoContainer: {
-        width: 80,
-        height: 80,
+    logoWrapper: {
+        position: 'relative',
+        marginBottom: 12,
+    },
+    logoGlow: {
+        position: 'absolute',
+        top: -10,
+        left: -10,
+        right: -10,
+        bottom: -10,
         borderRadius: 24,
-        backgroundColor: 'rgba(139, 92, 246, 0.15)',
+        opacity: 0.3,
+    },
+    logoContainer: {
+        width: 56,
+        height: 56,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(139, 92, 246, 0.3)',
     },
     logoIcon: {
-        fontSize: 36,
-    },
-    appName: {
         fontSize: 28,
+    },
+    appTitle: {
+        fontSize: 20,
+        fontWeight: '900',
+        color: '#fff',
+        letterSpacing: 6,
+        fontStyle: 'italic',
+    },
+    appTitleAccent: {
+        fontWeight: '900',
+    },
+    roleSelector: {
+        flexDirection: 'row',
+        gap: 16,
+        marginBottom: 24,
+    },
+    roleBtn: {
+        flex: 1,
+        borderRadius: 24,
+        overflow: 'hidden',
+        padding: 2,
+    },
+    roleBtnActive: {
+        transform: [{ scale: 1.02 }],
+    },
+    roleBtnInactive: {
+        opacity: 0.4,
+    },
+    roleBtnGradient: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        borderRadius: 24,
+        overflow: 'hidden',
+    },
+    gradientInner: {
+        flex: 1,
+    },
+    roleBtnContent: {
+        backgroundColor: '#0a0a0f',
+        borderRadius: 22,
+        paddingVertical: 20,
+        alignItems: 'center',
+        gap: 8,
+    },
+    roleIcon: {
+        fontSize: 24,
+    },
+    roleLabel: {
+        fontSize: 10,
+        fontWeight: '900',
+        letterSpacing: 3,
+    },
+    formCard: {
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        borderRadius: 40,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    topBorder: {
+        height: 4,
+        width: '100%',
+    },
+    formContent: {
+        padding: 32,
+    },
+    formHeader: {
+        alignItems: 'center',
+        marginBottom: 28,
+    },
+    formTitle: {
+        fontSize: 28,
+        fontWeight: '900',
+        color: '#fff',
+        fontStyle: 'italic',
+        letterSpacing: -1,
+    },
+    formTitleAccent: {
+        fontWeight: '900',
+    },
+    formSubtitle: {
+        fontSize: 9,
         fontWeight: '700',
-        color: '#f3f4f6',
-        letterSpacing: 0.5,
-    },
-    subtitle: {
-        fontSize: 14,
-        color: '#9ca3af',
+        color: '#4b5563',
+        letterSpacing: 4,
         marginTop: 4,
+        opacity: 0.5,
     },
-    form: {
-        gap: 14,
+    inputsContainer: {
+        gap: 16,
+        marginBottom: 24,
     },
-    inputContainer: {
+    inputWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#1f2937',
-        borderRadius: 14,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
         paddingHorizontal: 16,
-        paddingVertical: 4,
-        borderWidth: 1.5,
-        borderColor: 'transparent',
     },
     inputFocused: {
-        borderColor: '#8b5cf6',
-        backgroundColor: 'rgba(139, 92, 246, 0.05)',
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    },
+    inputIconContainer: {
+        opacity: 0.3,
+        marginRight: 12,
+    },
+    inputIconFocused: {
+        opacity: 1,
     },
     inputIcon: {
-        fontSize: 16,
-        marginRight: 12,
+        fontSize: 18,
     },
     input: {
         flex: 1,
-        height: 50,
-        color: '#e5e7eb',
-        fontSize: 15,
+        height: 54,
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: '500',
+    },
+    eyeButton: {
+        padding: 8,
+    },
+    eyeIcon: {
+        fontSize: 18,
+        opacity: 0.5,
     },
     loginButton: {
+        borderRadius: 16,
+        overflow: 'hidden',
+        padding: 2,
+        marginBottom: 24,
+    },
+    loginButtonDisabled: {
+        opacity: 0.6,
+    },
+    loginBtnGradient: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+    },
+    loginBtnInner: {
+        backgroundColor: '#050508',
+        borderRadius: 14,
+        paddingVertical: 18,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#8b5cf6',
-        paddingVertical: 16,
-        borderRadius: 14,
-        marginTop: 6,
+        gap: 12,
     },
-    loginButtonDisabled: {
-        backgroundColor: '#6b7280',
-    },
-    loginButtonText: {
+    loginBtnText: {
         color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
+        fontSize: 12,
+        fontWeight: '900',
+        letterSpacing: 3,
     },
-    loginButtonArrow: {
-        color: '#fff',
+    loginBtnArrow: {
         fontSize: 18,
-        marginLeft: 8,
     },
-    demoSection: {
-        marginTop: 24,
-        paddingTop: 20,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.06)',
+    footerLinks: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
     },
-    demoHeader: {
+    footerLink: {
+        fontSize: 9,
+        fontWeight: '700',
+        color: '#6b7280',
+        letterSpacing: 2,
+    },
+    registerContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 8,
+        gap: 4,
     },
-    demoDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: '#10b981',
-        marginRight: 6,
-    },
-    demoLabel: {
+    sparkle: {
         fontSize: 12,
-        color: '#6b7280',
-        fontWeight: '500',
     },
-    demoText: {
-        color: '#9ca3af',
-        fontSize: 13,
-        marginTop: 2,
+    registerLink: {
+        fontSize: 9,
+        fontWeight: '900',
+        color: '#fff',
+        letterSpacing: 2,
+        borderBottomWidth: 1,
+        borderBottomColor: 'transparent',
+    },
+    bottomActions: {
+        flexDirection: 'row',
+        gap: 16,
+        marginTop: 24,
+    },
+    bottomBtn: {
+        flex: 1,
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+        paddingVertical: 16,
+        alignItems: 'center',
+        gap: 8,
+    },
+    bottomBtnIcon: {
+        fontSize: 24,
+        opacity: 0.5,
+    },
+    bottomBtnLabel: {
+        fontSize: 8,
+        fontWeight: '900',
+        color: '#6b7280',
+        letterSpacing: 2,
     },
     footer: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: 24,
-        gap: 4,
+        marginTop: 'auto',
+        marginBottom: 24,
+        gap: 8,
+        opacity: 0.3,
+    },
+    footerIcon: {
+        fontSize: 12,
     },
     footerText: {
-        fontSize: 11,
-        color: '#4b5563',
-    },
-    footerBrand: {
-        fontSize: 11,
-        color: '#8b5cf6',
-        fontWeight: '600',
+        fontSize: 7,
+        fontWeight: '900',
+        color: '#fff',
+        letterSpacing: 4,
     },
 });

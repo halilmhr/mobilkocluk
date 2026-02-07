@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 
 type Mood = 'good' | 'ok' | 'bad';
@@ -414,26 +414,57 @@ export const useStudentBehavior = (studentId: string | null) => {
     };
 
     // Calculate productive days for streak calendar
-    const productiveDays = studyTimeLogs
-        .filter(s => s.duration !== '0-30')
-        .map(s => s.date);
+    const productiveDays = useMemo(() => {
+        const days = new Set<string>();
+
+        // 1. Days with study time > 0-30
+        studyTimeLogs.forEach(s => {
+            if (s.duration !== '0-30') days.add(s.date);
+        });
+
+        // 2. Days with question logs
+        dailyQuestionLogs.forEach(q => {
+            if (q.questionsSolved > 0) days.add(q.date);
+        });
+
+        // 3. Days with homework completions
+        homeworkLogs.forEach(h => {
+            if (h.completedAt) {
+                days.add(h.completedAt.split('T')[0]);
+            }
+        });
+
+        return Array.from(days).sort();
+    }, [studyTimeLogs, dailyQuestionLogs, homeworkLogs]);
 
     // Calculate current streak
     const calculateStreak = () => {
+        if (productiveDays.length === 0) return 0;
+
         let streak = 0;
+        const todayStr = new Date().toISOString().split('T')[0];
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+        // Check if active today or yesterday to continue streak
+        const isActiveNear = productiveDays.includes(todayStr) || productiveDays.includes(yesterdayStr);
+        if (!isActiveNear) return 0;
+
+        const checkDate = productiveDays.includes(todayStr) ? new Date() : yesterday;
+
         const sortedDays = [...productiveDays].sort((a, b) =>
             new Date(b).getTime() - new Date(a).getTime()
         );
 
-        const checkDate = new Date();
         for (const day of sortedDays) {
-            const dayDate = new Date(day);
-            const diffDays = Math.floor((checkDate.getTime() - dayDate.getTime()) / (1000 * 60 * 60 * 24));
+            const dayStr = new Date(day).toISOString().split('T')[0];
+            const currentCheckStr = checkDate.toISOString().split('T')[0];
 
-            if (diffDays <= 1) {
+            if (dayStr === currentCheckStr) {
                 streak++;
                 checkDate.setDate(checkDate.getDate() - 1);
-            } else {
+            } else if (dayStr < currentCheckStr) {
                 break;
             }
         }

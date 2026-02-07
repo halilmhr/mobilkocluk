@@ -41,12 +41,17 @@ export interface TrialExam {
   subjectResults: SubjectResult[];
 }
 
+export interface BookChapter {
+  title: string;
+  topics: string[];
+}
+
 export interface Book {
   id: string;
   name: string;
   subject?: string;        // Ders adı (Matematik, Fizik vb.)
   tocImageUri?: string;    // İçindekiler fotoğrafı URI
-  topics: string[];        // AI'dan çıkarılan konular
+  chapters: BookChapter[]; // AI'dan çıkarılan ünite ve konular
   createdAt: string;
 }
 

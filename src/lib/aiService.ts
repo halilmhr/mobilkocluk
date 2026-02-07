@@ -223,9 +223,9 @@ Cevabını JSON formatında ["Madde 1", "Madde 2", "Madde 3"] şeklinde ver.`;
     }
 };
 
-// Extract topics from table of contents image using Gemini Vision
-export const extractTopicsFromImage = async (base64Image: string): Promise<string[]> => {
-    console.log('[AI Service] extractTopicsFromImage called');
+// Extract nested units and topics from table of contents image using Gemini Vision
+export const extractTopicsFromImage = async (base64Image: string): Promise<{ title: string; topics: string[] }[]> => {
+    console.log('[AI Service] extractTopicsFromImage started - Image size approx:', Math.round(base64Image.length / 1024), 'KB');
 
     if (!API_KEY) {
         console.error('[AI Service] CRITICAL: API key not found!');
@@ -235,20 +235,28 @@ export const extractTopicsFromImage = async (base64Image: string): Promise<strin
     const client = new GoogleGenerativeAI(API_KEY);
     const model = client.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-    const prompt = `Bu bir kitabın içindekiler sayfasının fotoğrafı. 
-Fotoğraftaki TÜM konu başlıklarını çıkar ve liste olarak ver.
+    const prompt = `Bu bir kitabın içindekiler sayfasıdır. Lütfen sayfadaki ÜNİTE (Bölüm) ve altındaki KONU (Alt Başlık) hiyerarşisini çıkar.
 
 KURALLAR:
-1. Sadece konu başlıklarını al (sayfa numaralarını ALMA)
-2. Bölüm numaralarını da dahil et (örn: "Ünite 1 - Vektörler")
-3. Alt başlıklar varsa onları da ayrı ayrı yaz
-4. Türkçe konu isimlerini koru
-5. Her konuyu ayrı satıra yaz
+1. Sayfa numaralarını, sayfa başlarındaki "S." ibarelerini veya tarihleri KESİNLİKLE alma.
+2. Ünite/Bölüm isimlerini "title" alanına yaz. (Örn: "Ünite 1: Mantık ve Kümeler")
+3. O ünitenin altındaki tüm konu başlıklarını "topics" listesine ekle.
+4. Eğer kitabın yapısında net bir ünite-konu ayrımı yoksa (sadece liste halindeyse), hepsini "Genel Konular" başlıklı tek bir ünite altında topla.
+5. Madde işaretleri (•, -, *, 1., a.) gibi işaretleri temizle.
+6. Sadece eğitimle ilgili başlıkları al. (İçindekiler, Önsöz, Cevap Anahtarı gibi kısımları alma).
+7. Yazım hatalarını kitapta olduğu gibi bırak, düzeltme yapma.
 
-JSON formatında cevap ver:
+ÖRNEK YAPI:
 {
-  "topics": ["Konu 1", "Konu 2", "Konu 3", ...]
-}`;
+  "chapters": [
+    {
+      "title": "Ünite 1: Sayılar",
+      "topics": ["Tam Sayılar", "Rasyonel Sayılar"]
+    }
+  ]
+}
+
+Yanıtını SADECE yukarıdaki hiyerarşiye uygun JSON formatında ver.`;
 
     try {
         const response = await model.generateContent({
@@ -266,15 +274,58 @@ JSON formatında cevap ver:
             }],
             generationConfig: {
                 responseMimeType: "application/json",
+                responseSchema: {
+                    type: SchemaType.OBJECT,
+                    properties: {
+                        chapters: {
+                            type: SchemaType.ARRAY,
+                            items: {
+                                type: SchemaType.OBJECT,
+                                properties: {
+                                    title: { type: SchemaType.STRING },
+                                    topics: {
+                                        type: SchemaType.ARRAY,
+                                        items: { type: SchemaType.STRING }
+                                    }
+                                },
+                                required: ["title", "topics"]
+                            }
+                        }
+                    },
+                    required: ["chapters"]
+                }
             }
         });
 
-        const jsonString = response.response.text().trim();
-        console.log('[AI Service] Vision response:', jsonString.substring(0, 200));
+        const fullText = response.response.text();
+        console.log('[AI Service] Raw AI Response Length:', fullText.length);
+
+        let jsonString = fullText.trim();
+
+        // Robust markdown cleaning
+        if (jsonString.includes('```')) {
+            const match = jsonString.match(/```(?:json)?([\s\S]*?)```/);
+            if (match && match[1]) {
+                jsonString = match[1].trim();
+            }
+        }
+
         const parsed = JSON.parse(jsonString);
-        return parsed.topics || [];
-    } catch (error) {
-        console.error('[AI Service] Vision extraction error:', error);
-        throw new Error("İçindekiler analizi başarısız oldu");
+
+        if (!parsed.chapters || !Array.isArray(parsed.chapters)) {
+            console.error('[AI Service] Invalid format from AI:', jsonString);
+            throw new Error("AI beklenen formatta veri döndürmedi.");
+        }
+
+        console.log(`[AI Service] Successfully extracted ${parsed.chapters.length} chapters.`);
+        return parsed.chapters;
+    } catch (error: any) {
+        console.error('[AI Service] Vision extraction failed:', error);
+
+        if (error instanceof SyntaxError) {
+            throw new Error("Kitap verisi okundu ama işlenemedi. Lütfen tekrar deneyin.");
+        }
+
+        throw new Error(error?.message || "İçindekiler analizi başarısız oldu. Lütfen fotoğrafın net olduğundan ve içindekiler kısmını tam gördüğünden emin olun.");
     }
 };

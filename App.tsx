@@ -9,17 +9,6 @@ import { useApp } from './src/context/AppContext';
 import { UpdateManager } from './src/components/UpdateManager';
 
 const AppContent: React.FC = () => {
-  const { isLoading } = useApp();
-
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#60a5fa" />
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
-      </View>
-    );
-  }
-
   return <AppNavigator />;
 };
 

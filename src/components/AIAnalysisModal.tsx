@@ -17,12 +17,11 @@ import {
 
 const { width, height } = Dimensions.get('window');
 
-interface StudentInsight {
+interface StudentStats {
     name: string;
-    trend: 'up' | 'down' | 'stable';
-    weeklyProgress: number;
-    riskLevel: 'Kritik' | 'Dikkat' | 'İyi';
-    recommendation: string;
+    lastActive: string;
+    overdueCount: number;
+    completionRate: number;
 }
 
 interface AIAnalysisModalProps {
@@ -34,8 +33,8 @@ interface AIAnalysisModalProps {
     criticalCount: number;
     activeStudents: number;
     avgCompletionRate: number;
-    topStudents: { name: string; rate: number }[];
-    atRiskStudents: { name: string; reason: string }[];
+    topStudents: StudentStats[];
+    atRiskStudents: StudentStats[];
 }
 
 export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
@@ -63,6 +62,31 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
     const healthScore = getHealthScore();
     const healthColor = healthScore >= 70 ? '#10b981' : healthScore >= 40 ? '#fbbf24' : '#ef4444';
     const healthLabel = healthScore >= 70 ? 'Mükemmel' : healthScore >= 40 ? 'Orta' : 'Kritik';
+
+    const renderStudentTable = (students: StudentStats[]) => (
+        <View style={styles.tableContainer}>
+            <View style={styles.tableHeader}>
+                <Text style={[styles.columnHeader, { flex: 2 }]}>Öğrenci</Text>
+                <Text style={styles.columnHeader}>Son Giriş</Text>
+                <Text style={styles.columnHeader}>Geciken</Text>
+                <Text style={styles.columnHeader}>Başarı</Text>
+            </View>
+            {students.map((student, index) => (
+                <View key={index} style={styles.tableRow}>
+                    <Text style={[styles.studentName, { flex: 2 }]} numberOfLines={1}>
+                        {student.name}
+                    </Text>
+                    <Text style={styles.tableValue}>{student.lastActive}</Text>
+                    <Text style={[styles.tableValue, { color: student.overdueCount > 0 ? '#ef4444' : '#9ca3af' }]}>
+                        {student.overdueCount}
+                    </Text>
+                    <Text style={[styles.tableValue, { color: student.completionRate >= 70 ? '#10b981' : '#fbbf24' }]}>
+                        %{Math.round(student.completionRate)}
+                    </Text>
+                </View>
+            ))}
+        </View>
+    );
 
     return (
         <Modal
@@ -142,15 +166,7 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
                                 <Text style={styles.sectionTitle}>En Başarılı Öğrenciler</Text>
                             </View>
                             {topStudents.length > 0 ? (
-                                topStudents.slice(0, 3).map((student, index) => (
-                                    <View key={index} style={styles.studentRow}>
-                                        <View style={styles.rankBadge}>
-                                            <Text style={styles.rankText}>{index + 1}</Text>
-                                        </View>
-                                        <Text style={styles.studentName}>{student.name}</Text>
-                                        <Text style={styles.studentRate}>%{student.rate}</Text>
-                                    </View>
-                                ))
+                                renderStudentTable(topStudents.slice(0, 5))
                             ) : (
                                 <Text style={styles.emptyText}>Henüz yeterli veri yok</Text>
                             )}
@@ -163,15 +179,7 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
                                 <Text style={styles.sectionTitle}>Dikkat Gerektiren Öğrenciler</Text>
                             </View>
                             {atRiskStudents.length > 0 ? (
-                                atRiskStudents.slice(0, 3).map((student, index) => (
-                                    <View key={index} style={styles.riskRow}>
-                                        <View style={styles.riskDot} />
-                                        <View style={styles.riskContent}>
-                                            <Text style={styles.riskName}>{student.name}</Text>
-                                            <Text style={styles.riskReason}>{student.reason}</Text>
-                                        </View>
-                                    </View>
-                                ))
+                                renderStudentTable(atRiskStudents.slice(0, 5))
                             ) : (
                                 <View style={styles.successRow}>
                                     <Text style={styles.successIcon}>✅</Text>
@@ -545,6 +553,38 @@ const styles = StyleSheet.create({
         fontStyle: 'italic',
         textAlign: 'center',
         paddingVertical: 12,
+    },
+    tableContainer: {
+        marginTop: 8,
+    },
+    tableHeader: {
+        flexDirection: 'row',
+        paddingBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+        marginBottom: 8,
+    },
+    columnHeader: {
+        flex: 1,
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#6b7280',
+        textTransform: 'uppercase',
+        textAlign: 'center',
+    },
+    tableRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255, 255, 255, 0.03)',
+    },
+    tableValue: {
+        flex: 1,
+        fontSize: 12,
+        color: '#9ca3af',
+        textAlign: 'center',
+        fontWeight: '600',
     },
     footerButton: {
         backgroundColor: '#8b5cf6',

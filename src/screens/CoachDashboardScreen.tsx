@@ -737,6 +737,7 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
 
     return (
         <SafeAreaView style={styles.container}>
+            <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
@@ -817,10 +818,23 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
                             behindStudents={myStudents.filter(s => {
                                 const riskInfo = getStudentRiskInfo(s);
                                 return riskInfo.label === 'Kritik' || riskInfo.label === 'Dikkat';
-                            }).map(s => ({
-                                name: s.name,
-                                detail: `Risk: ${getStudentRiskInfo(s).label}`
-                            }))}
+                            }).map(s => {
+                                const riskInfo = getStudentRiskInfo(s);
+                                const reasons = [];
+                                if (riskInfo.passiveDays >= 3) {
+                                    reasons.push(`${riskInfo.passiveDays} gündür inaktif`);
+                                }
+                                if (riskInfo.overdueCount > 0) {
+                                    reasons.push(`${riskInfo.overdueCount} görev gecikmiş`);
+                                }
+                                if (riskInfo.weeklyCompletionRate < 50) {
+                                    reasons.push(`Haftalık tamamlama: %${riskInfo.weeklyCompletionRate}`);
+                                }
+                                return {
+                                    name: s.name,
+                                    detail: reasons.length > 0 ? reasons.join(' • ') : `Risk: ${riskInfo.label}`
+                                };
+                            })}
                             overdueItems={premiumStats.overdueTasks.map(t => ({
                                 name: t.studentName,
                                 detail: `${t.title} - ${new Date(t.dueDate).toLocaleDateString('tr-TR')}`

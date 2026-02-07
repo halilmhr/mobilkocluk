@@ -86,6 +86,7 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
         addAssignment,
         deleteStudent,
         addBook,
+        deleteBook,
         refreshData,
     } = useApp();
 
@@ -93,6 +94,29 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
         () => students.filter(s => s.coachId === currentUser?.id),
         [students, currentUser]
     );
+
+    const handleDeleteBook = (bookId: string, bookName: string) => {
+        if (!selectedStudent) return;
+        Alert.alert(
+            'Kitabı Sil',
+            `"${bookName}" kitabını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`,
+            [
+                { text: 'Vazgeç', style: 'cancel' },
+                {
+                    text: 'Sil',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await deleteBook(selectedStudent.id, bookId);
+                            Alert.alert('Başarılı', 'Kitap silindi.');
+                        } catch (error) {
+                            Alert.alert('Hata', 'Kitap silinirken bir hata oluştu.');
+                        }
+                    }
+                }
+            ]
+        );
+    };
 
     // V3: Last analysis timestamp for real-time feel
     const [lastAnalysis, setLastAnalysis] = useState<Date>(new Date());
@@ -1516,7 +1540,15 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
                                                                     <Text style={{ color: '#64748b', fontSize: 12 }}>{book.chapters?.length || 0} Ünite • {totalTopics} Konu</Text>
                                                                 </View>
                                                             </View>
-                                                            <Text style={{ color: '#475569', fontSize: 20 }}>{isBookExpanded ? '▼' : '▶'}</Text>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                                                <TouchableOpacity
+                                                                    onPress={() => handleDeleteBook(book.id, book.name)}
+                                                                    style={{ padding: 8 }}
+                                                                >
+                                                                    <Text style={{ fontSize: 18 }}>🗑️</Text>
+                                                                </TouchableOpacity>
+                                                                <Text style={{ color: '#475569', fontSize: 20 }}>{isBookExpanded ? '▼' : '▶'}</Text>
+                                                            </View>
                                                         </TouchableOpacity>
 
                                                         {isBookExpanded && (

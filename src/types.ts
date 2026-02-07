@@ -52,6 +52,7 @@ export interface Book {
   subject?: string;        // Ders adı (Matematik, Fizik vb.)
   tocImageUri?: string;    // İçindekiler fotoğrafı URI
   chapters: BookChapter[]; // AI'dan çıkarılan ünite ve konular
+  topics?: string[];       // Geriye dönük uyumluluk için düz liste (isteğe bağlı)
   createdAt: string;
 }
 

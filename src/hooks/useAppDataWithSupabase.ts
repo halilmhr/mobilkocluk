@@ -162,7 +162,8 @@ const useAppDataWithSupabase = () => {
                 name: b.name,
                 subject: b.subject,
                 tocImageUri: b.toc_image_uri,
-                topics: b.topics || [],
+                chapters: b.chapters || [],
+                topics: b.topics || [], // Keep legacy topics if any
                 createdAt: b.created_at,
             })),
         }));
@@ -475,7 +476,8 @@ const useAppDataWithSupabase = () => {
                         name: bookData.name,
                         subject: bookData.subject || null,
                         toc_image_uri: bookData.tocImageUri || null,
-                        topics: bookData.topics || [],
+                        chapters: bookData.chapters || [],
+                        topics: [], // Stop using legacy topics
                     })
                     .select()
                     .single();
@@ -498,7 +500,8 @@ const useAppDataWithSupabase = () => {
                 name: bookData.name,
                 subject: bookData.subject,
                 tocImageUri: bookData.tocImageUri,
-                topics: bookData.topics || [],
+                chapters: bookData.chapters || [],
+                topics: [],
                 createdAt: new Date().toISOString(),
             };
             setStudents(prev => prev.map(s => {

@@ -787,7 +787,7 @@ export const StudentDashboardScreen: React.FC<Props> = ({ navigation }) => {
             Alert.alert('Hata', 'Lütfen kitap adı girin.');
             return;
         }
-        addBook(studentData.id, bookName);
+        addBook(studentData.id, { name: bookName.trim(), chapters: [] });
         setBookName('');
         setBookModalOpen(false);
         Alert.alert('Başarılı', 'Kitap eklendi!');

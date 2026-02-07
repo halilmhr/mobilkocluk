@@ -8,6 +8,8 @@ import {
     TouchableOpacity,
     Alert,
     RefreshControl,
+    StatusBar,
+    FlatList,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ActionCard } from '../components/ActionCard';
@@ -44,6 +46,7 @@ import { InterventionList, StudentWithRisk } from '../components/InterventionLis
 import { AISummaryPanel } from '../components/AISummaryPanel';
 import { CompactStudentList } from '../components/CompactStudentList';
 import { PerformanceChart } from '../components/PerformanceChart';
+import { DailyCoachingStatus } from '../components/DailyCoachingStatus';
 import { PREMIUM_COLORS } from '../styles/premiumStyles';
 import {
     getTodayRiskStudentsCount,
@@ -800,6 +803,34 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
                             }}
                         />
 
+                        {/* 2.5️⃣ DAILY COACHING STATUS */}
+                        <DailyCoachingStatus
+                            behindCount={myStudents.filter(s => {
+                                const riskInfo = getStudentRiskInfo(s);
+                                return riskInfo.label === 'Kritik' || riskInfo.label === 'Dikkat';
+                            }).length}
+                            overdueCount={getTotalOverdueCount(myStudents)}
+                            inactiveCount={myStudents.filter(s => {
+                                const riskInfo = getStudentRiskInfo(s);
+                                return riskInfo.passiveDays >= 3;
+                            }).length}
+                            behindStudents={myStudents.filter(s => {
+                                const riskInfo = getStudentRiskInfo(s);
+                                return riskInfo.label === 'Kritik' || riskInfo.label === 'Dikkat';
+                            }).map(s => ({
+                                name: s.name,
+                                detail: `Risk: ${getStudentRiskInfo(s).label}`
+                            }))}
+                            overdueItems={premiumStats.overdueTasks.map(t => ({
+                                name: t.studentName,
+                                detail: `${t.title} - ${new Date(t.dueDate).toLocaleDateString('tr-TR')}`
+                            }))}
+                            inactiveStudents={premiumStats.passiveStudents.map(s => ({
+                                name: s.name,
+                                detail: `${s.passiveDays} gündür inaktif`
+                            }))}
+                        />
+
                         {/* 3️⃣ AI SUMMARY - Data-Focused */}
                         <AISummaryPanel
                             weeklyActivityChange={premiumStats.weeklyChange}
@@ -809,12 +840,6 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
                             onViewDetails={() => {
                                 Alert.alert('AI Analizi', 'Detaylı AI analizi yakında aktif olacak.');
                             }}
-                        />
-
-                        {/* 4️⃣ SINGLE CHART - 7 Day Activity */}
-                        <PerformanceChart
-                            data={premiumStats.chartData}
-                            weeklyChange={premiumStats.weeklyChange}
                         />
 
                         {/* Add Student Button - Subtle placement */}

@@ -1,6 +1,6 @@
 /**
  * Compact Student List - Refined Premium Design
- * Dynamic progress colors, slimmer cards
+ * Fixed progress bar width issue
  */
 
 import React, { useState, useMemo } from 'react';
@@ -92,15 +92,19 @@ export const CompactStudentList: React.FC<CompactStudentListProps> = ({ students
                             activeOpacity={0.7}
                         >
                             {/* Name */}
-                            <Text style={styles.name} numberOfLines={1}>{student.name}</Text>
+                            <View style={styles.nameSection}>
+                                <Text style={styles.name} numberOfLines={1}>{student.name}</Text>
+                            </View>
 
                             {/* Progress */}
                             <View style={styles.progressSection}>
-                                <View style={styles.progressBar}>
-                                    <View style={[
-                                        styles.progressFill,
-                                        { width: `${Math.min(rate, 100)}%`, backgroundColor: progressColor }
-                                    ]} />
+                                <View style={styles.progressBarContainer}>
+                                    <View style={styles.progressBar}>
+                                        <View style={[
+                                            styles.progressFill,
+                                            { width: `${Math.min(rate, 100)}%`, backgroundColor: progressColor }
+                                        ]} />
+                                    </View>
                                 </View>
                                 <Text style={[styles.rate, { color: progressColor }]}>%{rate}</Text>
                             </View>
@@ -162,13 +166,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: '#111827',
         paddingVertical: 12,
-        paddingHorizontal: 14,
+        paddingHorizontal: 12,
         borderRadius: 12,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.06)',
     },
-    name: {
+    nameSection: {
         flex: 1,
+        minWidth: 0, // Allow text truncation
+    },
+    name: {
         fontSize: 13,
         fontWeight: '600',
         color: '#e5e7eb',
@@ -176,37 +183,46 @@ const styles = StyleSheet.create({
     progressSection: {
         flexDirection: 'row',
         alignItems: 'center',
-        width: 75,
-        marginRight: 10,
+        width: 90,
+        marginLeft: 8,
+    },
+    progressBarContainer: {
+        flex: 1,
+        marginRight: 6,
     },
     progressBar: {
-        flex: 1,
-        height: 3,
+        height: 4,
         backgroundColor: '#374151',
         borderRadius: 2,
-        marginRight: 6,
         overflow: 'hidden',
     },
-    progressFill: { height: '100%', borderRadius: 2 },
+    progressFill: {
+        height: '100%',
+        borderRadius: 2,
+    },
     rate: {
         fontSize: 10,
         fontWeight: '600',
-        width: 26,
+        width: 30,
         textAlign: 'right',
     },
     badge: {
-        width: 18,
-        height: 18,
-        borderRadius: 9,
+        width: 20,
+        height: 20,
+        borderRadius: 10,
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 10,
+        marginLeft: 8,
     },
     badgeText: {
         fontSize: 9,
         fontWeight: '700',
     },
-    lastActive: { alignItems: 'flex-end' },
+    lastActive: {
+        alignItems: 'flex-end',
+        marginLeft: 8,
+        minWidth: 55,
+    },
     lastActiveLabel: {
         fontSize: 8,
         color: '#4b5563',

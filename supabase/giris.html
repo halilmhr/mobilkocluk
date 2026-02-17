@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduHub Aura Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+
+        :root {
+            --student-primary: linear-gradient(to right, #3b82f6, #22d3ee, #6366f1);
+            --coach-primary: linear-gradient(to right, #9333ea, #d946ef, #ec4899);
+            --student-glow: rgba(34, 211, 238, 0.2);
+            --coach-glow: rgba(217, 70, 239, 0.2);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #010103;
+            color: white;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        /* Animasyonlar */
+        @keyframes spin-slow {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes snappy-slide {
+            0% {
+                opacity: 0;
+                transform: translateX(10px) scale(0.99);
+                filter: blur(2px);
+            }
+
+            100% {
+                opacity: 1;
+                transform: translateX(0) scale(1);
+                filter: blur(0);
+            }
+        }
+
+        @keyframes aura-pulse {
+
+            0%,
+            100% {
+                opacity: 0.4;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.6;
+                transform: scale(1.05);
+            }
+        }
+
+        .animate-spin-slow {
+            animation: spin-slow 8s linear infinite;
+        }
+
+        .animate-aura {
+            animation: aura-pulse 4s ease-in-out infinite;
+        }
+
+        .animate-snappy {
+            animation: snappy-slide 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        /* Cam Efekti ve Aura */
+        .glass {
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .aura-bg {
+            position: absolute;
+            top: -25%;
+            left: -25%;
+            width: 150%;
+            height: 150%;
+            border-radius: 50%;
+            filter: blur(180px);
+            transition: background 0.5s ease;
+            z-index: 0;
+        }
+
+        .student-active .aura-bg {
+            background: rgba(30, 58, 138, 0.3);
+        }
+
+        .coach-active .aura-bg {
+            background: rgba(88, 28, 135, 0.3);
+        }
+
+        .grid-bg {
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(#fff 1px, transparent 1px);
+            background-size: 30px 30px;
+            opacity: 0.03;
+            z-index: 1;
+        }
+
+        /* Input Styles */
+        input::placeholder {
+            transition: all 0.3s ease;
+        }
+
+        input:focus::placeholder {
+            opacity: 0;
+            transform: translateX(10px);
+        }
+
+        .role-btn {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .role-btn.active {
+            transform: scale(1.05);
+            opacity: 1;
+            filter: grayscale(0);
+        }
+
+        .role-btn.inactive {
+            opacity: 0.3;
+            filter: grayscale(1);
+        }
+    </style>
+</head>
+
+<body class="student-active">
+    <div class="aura-bg animate-aura"></div>
+    <div class="grid-bg"></div>
+
+    <div class="relative z-10 min-h-screen flex flex-col items-center p-6 w-full">
+        <!-- Header -->
+        <header id="header" class="text-center mt-6 mb-10 transition-all duration-700 opacity-0 -translate-y-5">
+            <div class="relative inline-block mb-3">
+                <div id="logo-glow"
+                    class="absolute inset-0 blur-2xl opacity-40 transition-all duration-500 bg-gradient-to-r from-blue-500 to-cyan-400">
+                </div>
+                <div class="relative glass p-3 rounded-2xl">
+                    <i data-lucide="orbit" class="w-8 h-8 animate-spin-slow text-cyan-400" id="logo-icon"></i>
+                </div>
+            </div>
+            <h1 class="text-xl font-black tracking-[0.4em] italic uppercase">
+                CORE<span id="logo-text" class="text-cyan-400 transition-colors duration-500">HUB</span>
+            </h1>
+        </header>
+
+        <!-- Main Panel -->
+        <main class="w-full max-w-sm flex flex-col gap-6">
+            <!-- Yan Yana Seçim Butonları -->
+            <div id="role-selector"
+                class="grid grid-cols-2 gap-4 opacity-0 scale-95 transition-all duration-500 delay-100">
+                <!-- Öğrenci -->
+                <button onclick="setRole('student')" id="btn-student"
+                    class="role-btn active relative overflow-hidden rounded-3xl p-[2px]">
+                    <div class="absolute inset-0 bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500"></div>
+                    <div class="relative bg-[#0a0a0f] rounded-[22px] p-5 flex flex-col items-center gap-2">
+                        <i data-lucide="graduation-cap" class="text-black scale-110 transition-all duration-500"
+                            id="student-icon"></i>
+                        <span class="text-[10px] font-black tracking-widest text-black">ÖĞRENCİ</span>
+                    </div>
+                </button>
+
+                <!-- Koç -->
+                <button onclick="setRole('coach')" id="btn-coach"
+                    class="role-btn inactive relative overflow-hidden rounded-3xl p-[2px]">
+                    <div class="absolute inset-0 bg-gradient-to-r from-purple-600 via-fuchsia-500 to-pink-500 opacity-0"
+                        id="coach-bg"></div>
+                    <div class="relative bg-[#0a0a0f] rounded-[22px] p-5 flex flex-col items-center gap-2">
+                        <i data-lucide="users" class="text-fuchsia-400 transition-all duration-500" id="coach-icon"></i>
+                        <span class="text-[10px] font-black tracking-widest text-white">KOÇ</span>
+                    </div>
+                </button>
+            </div>
+
+            <!-- Giriş Formu -->
+            <div id="login-container"
+                class="relative glass rounded-[2.5rem] overflow-hidden opacity-0 translate-y-10 transition-all duration-500 delay-200">
+                <div id="top-border"
+                    class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 transition-all duration-500">
+                </div>
+
+                <div id="form-content" class="p-8 space-y-7 animate-snappy">
+                    <div class="text-center space-y-1">
+                        <h2 class="text-3xl font-black italic tracking-tighter uppercase leading-none">
+                            <span id="role-title-text">Giriş</span> <span id="role-accent-text"
+                                class="text-cyan-400">PANELİ</span>
+                        </h2>
+                        <p class="text-[9px] font-bold text-gray-500 tracking-[0.4em] uppercase opacity-40">//
+                            AUTH_READY</p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="relative group">
+                            <div
+                                class="absolute inset-y-0 left-5 flex items-center opacity-20 group-focus-within:opacity-100 transition-all duration-300">
+                                <i data-lucide="user" class="w-[18px] text-cyan-400" id="user-icon"></i>
+                            </div>
+                            <input type="text" placeholder="Kullanıcı adı veya e-posta" id="username"
+                                class="w-full bg-white/5 border border-white/10 rounded-2xl py-4.5 pl-12 pr-4 text-xs focus:outline-none focus:border-white/20 focus:bg-white/[0.08] transition-all font-medium">
+                        </div>
+
+                        <div class="relative group">
+                            <div
+                                class="absolute inset-y-0 left-5 flex items-center opacity-20 group-focus-within:opacity-100 transition-all duration-300">
+                                <i data-lucide="lock" class="w-[18px] text-cyan-400" id="lock-icon"></i>
+                            </div>
+                            <input type="password" placeholder="Şifre" id="password"
+                                class="w-full bg-white/5 border border-white/10 rounded-2xl py-4.5 pl-12 pr-12 text-xs focus:outline-none focus:border-white/20 focus:bg-white/[0.08] transition-all font-medium">
+                            <button onclick="togglePassword()"
+                                class="absolute inset-y-0 right-5 flex items-center text-gray-600 hover:text-white transition-colors">
+                                <i data-lucide="eye" class="w-[18px]" id="eye-icon"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button
+                        class="group relative w-full overflow-hidden rounded-2xl p-[2px] transition-all duration-300 hover:scale-[1.02] active:scale-[0.96]">
+                        <div id="btn-gradient"
+                            class="absolute inset-0 bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500"></div>
+                        <div
+                            class="relative bg-[#050508] rounded-[14px] py-4.5 flex items-center justify-center gap-3 group-hover:bg-transparent transition-colors duration-300">
+                            <span
+                                class="font-black text-xs uppercase tracking-[0.3em] group-hover:text-black transition-colors">Oturum
+                                Aç</span>
+                            <i data-lucide="arrow-right"
+                                class="w-[18px] text-cyan-400 group-hover:text-black transition-all group-hover:translate-x-2"></i>
+                        </div>
+                    </button>
+
+                    <div class="flex justify-between items-center px-1">
+                        <button
+                            class="text-[9px] font-bold text-gray-500 uppercase tracking-widest hover:text-white transition-colors">Destek</button>
+                        <div class="flex items-center gap-1">
+                            <i data-lucide="sparkles" class="w-3 text-cyan-400" id="sparkle-icon"></i>
+                            <button
+                                class="text-[9px] font-black uppercase tracking-widest border-b border-transparent hover:border-white pb-0.5 transition-all">Kayıt
+                                Ol</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alt Seçenekler -->
+            <div id="footer-actions"
+                class="grid grid-cols-2 gap-4 mt-2 opacity-0 translate-y-5 transition-all duration-700 delay-300">
+                <button
+                    class="flex flex-col items-center justify-center gap-2 py-4 glass rounded-3xl hover:bg-white/10 transition-all active:scale-90">
+                    <i data-lucide="fingerprint" class="w-6 text-gray-500"></i>
+                    <span class="text-[8px] font-black uppercase tracking-widest text-gray-500">Biometric</span>
+                </button>
+                <button
+                    class="flex flex-col items-center justify-center gap-2 py-4 glass rounded-3xl hover:bg-white/10 transition-all active:scale-90">
+                    <i data-lucide="mail" class="w-6 text-gray-500"></i>
+                    <span class="text-[8px] font-black uppercase tracking-widest text-gray-500">İletişim</span>
+                </button>
+            </div>
+        </main>
+
+        <footer id="footer-text"
+            class="mt-auto mb-4 py-4 opacity-0 translate-y-5 transition-all duration-700 delay-500">
+            <div class="flex items-center gap-2 opacity-30">
+                <i data-lucide="activity" class="w-3 text-cyan-400" id="footer-icon"></i>
+                <span class="text-[7px] font-black uppercase tracking-[0.5em]">FAST_CORE_v2.1</span>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // Lucide ikonlarını başlat
+        lucide.createIcons();
+
+        let currentRole = 'student';
+
+        window.onload = () => {
+            // Açılış animasyonları
+            document.getElementById('header').classList.remove('opacity-0', '-translate-y-5');
+            document.getElementById('role-selector').classList.remove('opacity-0', 'scale-95');
+            document.getElementById('login-container').classList.remove('opacity-0', 'translate-y-10');
+            document.getElementById('footer-actions').classList.remove('opacity-0', 'translate-y-5');
+            document.getElementById('footer-text').classList.remove('opacity-0', 'translate-y-5');
+        };
+
+        function setRole(role) {
+            if (currentRole === role) return;
+            currentRole = role;
+
+            const body = document.body;
+            const logoGlow = document.getElementById('logo-glow');
+            const logoIcon = document.getElementById('logo-icon');
+            const logoText = document.getElementById('logo-text');
+            const btnStudent = document.getElementById('btn-student');
+            const btnCoach = document.getElementById('btn-coach');
+            const topBorder = document.getElementById('top-border');
+            const roleTitle = document.getElementById('role-title-text');
+            const roleAccent = document.getElementById('role-accent-text');
+            const btnGradient = document.getElementById('btn-gradient');
+            const usernameInput = document.getElementById('username');
+
+            // Renkleri güncelle
+            if (role === 'student') {
+                body.className = 'student-active';
+                logoGlow.className = 'absolute inset-0 blur-2xl opacity-40 transition-all duration-500 bg-gradient-to-r from-blue-500 to-cyan-400';
+                logoIcon.className = 'w-8 h-8 animate-spin-slow text-cyan-400';
+                logoText.className = 'text-cyan-400 transition-colors duration-500';
+
+                btnStudent.className = 'role-btn active relative overflow-hidden rounded-3xl p-[2px] scale-105 z-20 shadow-xl';
+                btnCoach.className = 'role-btn inactive relative overflow-hidden rounded-3xl p-[2px]';
+
+                topBorder.className = 'absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 transition-all duration-500';
+                btnGradient.className = 'absolute inset-0 bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500';
+
+                roleTitle.innerText = 'Giriş';
+                roleAccent.className = 'text-cyan-400 transition-colors duration-500';
+                usernameInput.placeholder = 'Kullanıcı adı veya e-posta';
+                updateIcons('text-cyan-400');
+            } else {
+                body.className = 'coach-active';
+                logoGlow.className = 'absolute inset-0 blur-2xl opacity-40 transition-all duration-500 bg-gradient-to-r from-purple-600 to-pink-500';
+                logoIcon.className = 'w-8 h-8 animate-spin-slow text-fuchsia-400';
+                logoText.className = 'text-fuchsia-400 transition-colors duration-500';
+
+                btnStudent.className = 'role-btn inactive relative overflow-hidden rounded-3xl p-[2px]';
+                btnCoach.className = 'role-btn active relative overflow-hidden rounded-3xl p-[2px] scale-105 z-20 shadow-xl';
+
+                topBorder.className = 'absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-600 via-fuchsia-500 to-pink-500 transition-all duration-500';
+                btnGradient.className = 'absolute inset-0 bg-gradient-to-r from-purple-600 via-fuchsia-500 to-pink-500';
+
+                roleTitle.innerText = 'Koç';
+                roleAccent.className = 'text-fuchsia-400 transition-colors duration-500';
+                usernameInput.placeholder = 'Koç ID veya e-posta';
+                updateIcons('text-fuchsia-400');
+            }
+
+            // Form animasyonunu tetikle
+            const form = document.getElementById('form-content');
+            form.style.animation = 'none';
+            form.offsetHeight; // trigger reflow
+            form.style.animation = null;
+        }
+
+        function updateIcons(colorClass) {
+            document.getElementById('user-icon').className = `w-[18px] ${colorClass}`;
+            document.getElementById('lock-icon').className = `w-[18px] ${colorClass}`;
+            document.getElementById('sparkle-icon').className = `w-3 ${colorClass}`;
+            document.getElementById('footer-icon').className = `w-3 ${colorClass}`;
+
+            // Seçim butonlarını id ile çekerek ReferenceError hatasını çözüyoruz
+            const btnStudent = document.getElementById('btn-student');
+            const btnCoach = document.getElementById('btn-coach');
+            const sIcon = document.getElementById('student-icon');
+            const cIcon = document.getElementById('coach-icon');
+            const sLabel = btnStudent.querySelector('span');
+            const cLabel = btnCoach.querySelector('span');
+            const cBg = document.getElementById('coach-bg');
+            const sBg = btnStudent.querySelector('div:first-child');
+
+            if (currentRole === 'student') {
+                sIcon.className = `text-black scale-110 transition-all duration-500`;
+                cIcon.className = `text-fuchsia-400 transition-all duration-500`;
+                sLabel.className = 'text-[10px] font-black tracking-widest text-black';
+                cLabel.className = 'text-[10px] font-black tracking-widest text-white';
+                sBg.style.opacity = '1';
+                cBg.style.opacity = '0';
+            } else {
+                sIcon.className = `text-cyan-400 transition-all duration-500`;
+                cIcon.className = `text-black scale-110 transition-all duration-500`;
+                sLabel.className = 'text-[10px] font-black tracking-widest text-white';
+                cLabel.className = 'text-[10px] font-black tracking-widest text-black';
+                sBg.style.opacity = '0';
+                cBg.style.opacity = '1';
+            }
+            lucide.createIcons();
+        }
+
+        function togglePassword() {
+            const pwd = document.getElementById('password');
+            const eye = document.getElementById('eye-icon');
+            if (pwd.type === 'password') {
+                pwd.type = 'text';
+                eye.setAttribute('data-lucide', 'eye-off');
+            } else {
+                pwd.type = 'password';
+                eye.setAttribute('data-lucide', 'eye');
+            }
+            lucide.createIcons();
+        }
+    </script>
+</body>
+
+</html>

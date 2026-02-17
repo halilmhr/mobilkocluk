@@ -3,7 +3,7 @@
  * Clean, modern, and professional with subtle premium touches
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -16,10 +16,13 @@ import {
     Animated,
     StatusBar,
     Dimensions,
+    ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { useApp } from '../context/AppContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
@@ -35,17 +38,45 @@ type Props = {
 };
 
 export const LoginScreen: React.FC<Props> = ({ navigation, route }) => {
+    const insets = useSafeAreaInsets();
     const { role: initialRole } = route.params;
     const { login } = useApp();
 
     const [role, setRole] = useState<'student' | 'coach'>(initialRole);
     const isCoach = role === 'coach';
 
-    const [email, setEmail] = useState(isCoach ? 'halilay45@gmail.com' : '');
-    const [password, setPassword] = useState(isCoach ? '123456' : '');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(null);
+    const [rememberMe, setRememberMe] = useState(false);
+
+    // Load saved credentials for current role
+    const loadCredentialsForRole = async (targetRole: 'student' | 'coach') => {
+        try {
+            const saved = await AsyncStorage.getItem(`rememberedCredentials_${targetRole}`);
+            if (saved) {
+                const { email: savedEmail, password: savedPassword } = JSON.parse(saved);
+                setEmail(savedEmail);
+                setPassword(savedPassword);
+                setRememberMe(true);
+            } else {
+                setEmail('');
+                setPassword('');
+                setRememberMe(false);
+            }
+        } catch (_) {
+            setEmail('');
+            setPassword('');
+            setRememberMe(false);
+        }
+    };
+
+    // Load on mount
+    useEffect(() => {
+        loadCredentialsForRole(role);
+    }, []);
 
     // Animations
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -69,13 +100,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation, route }) => {
     const handleRoleChange = (newRole: 'student' | 'coach') => {
         if (role === newRole) return;
         setRole(newRole);
-        if (newRole === 'coach') {
-            setEmail('halilay45@gmail.com');
-            setPassword('123456');
-        } else {
-            setEmail('');
-            setPassword('');
-        }
+        loadCredentialsForRole(newRole);
     };
 
     const handleLogin = async () => {
@@ -88,6 +113,12 @@ export const LoginScreen: React.FC<Props> = ({ navigation, route }) => {
         try {
             const user = await login(email, password);
             if (user && user.role === role) {
+                // Save or clear credentials based on Remember Me (role-specific)
+                if (rememberMe) {
+                    await AsyncStorage.setItem(`rememberedCredentials_${role}`, JSON.stringify({ email, password }));
+                } else {
+                    await AsyncStorage.removeItem(`rememberedCredentials_${role}`);
+                }
                 navigation.reset({
                     index: 0,
                     routes: [{ name: role === 'coach' ? 'CoachDashboard' : 'StudentDashboard' }],
@@ -106,158 +137,166 @@ export const LoginScreen: React.FC<Props> = ({ navigation, route }) => {
     const accentColor = isCoach ? '#a855f7' : '#3b82f6';
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
             <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
             {/* Background Gradient */}
             <View style={[styles.bgGradient, { backgroundColor: isCoach ? 'rgba(168, 85, 247, 0.08)' : 'rgba(59, 130, 246, 0.08)' }]} />
 
             <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.content}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+                style={styles.keyboardAvoidingView}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
             >
-                {/* Logo & Brand */}
-                <Animated.View style={[
-                    styles.header,
-                    { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
-                ]}>
-                    <View style={[styles.logoContainer, { borderColor: accentColor }]}>
-                        <Text style={styles.logoEmoji}>📚</Text>
-                    </View>
-                    <Text style={styles.brandName}>Koçluk Platformu</Text>
-                    <Text style={styles.brandTagline}>Başarıya giden yolda yanınızdayız</Text>
-                </Animated.View>
-
-                {/* Role Selector */}
-                <Animated.View style={[
-                    styles.roleSelector,
-                    { opacity: fadeAnim }
-                ]}>
-                    <TouchableOpacity
-                        style={[
-                            styles.roleBtn,
-                            role === 'student' && [styles.roleBtnActive, { borderColor: '#3b82f6' }]
-                        ]}
-                        onPress={() => handleRoleChange('student')}
-                    >
-                        <Text style={styles.roleBtnIcon}>🎓</Text>
-                        <Text style={[
-                            styles.roleBtnText,
-                            role === 'student' && { color: '#3b82f6', fontWeight: '700' }
-                        ]}>Öğrenci</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[
-                            styles.roleBtn,
-                            role === 'coach' && [styles.roleBtnActive, { borderColor: '#a855f7' }]
-                        ]}
-                        onPress={() => handleRoleChange('coach')}
-                    >
-                        <Text style={styles.roleBtnIcon}>👨‍🏫</Text>
-                        <Text style={[
-                            styles.roleBtnText,
-                            role === 'coach' && { color: '#a855f7', fontWeight: '700' }
-                        ]}>Koç</Text>
-                    </TouchableOpacity>
-                </Animated.View>
-
-                {/* Login Card */}
-                <Animated.View style={[
-                    styles.loginCard,
-                    { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
-                ]}>
-                    <Text style={styles.loginTitle}>
-                        {isCoach ? 'Koç Girişi' : 'Öğrenci Girişi'}
-                    </Text>
-
-                    {/* Email Input */}
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.inputLabel}>E-posta</Text>
-                        <View style={[
-                            styles.inputWrapper,
-                            focusedField === 'email' && [styles.inputFocused, { borderColor: accentColor }]
-                        ]}>
-                            <Text style={styles.inputIcon}>📧</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="ornek@email.com"
-                                placeholderTextColor="#64748b"
-                                value={email}
-                                onChangeText={setEmail}
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                                onFocus={() => setFocusedField('email')}
-                                onBlur={() => setFocusedField(null)}
-                            />
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    {/* Logo & Brand */}
+                    <Animated.View style={[
+                        styles.header,
+                        { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+                    ]}>
+                        <View style={[styles.logoContainer, { borderColor: accentColor }]}>
+                            <Text style={styles.logoEmoji}>📚</Text>
                         </View>
-                    </View>
+                        <Text style={styles.brandName}>Koçluk Platformu</Text>
+                        <Text style={styles.brandTagline}>Başarıya giden yolda yanınızdayız</Text>
+                    </Animated.View>
 
-                    {/* Password Input */}
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.inputLabel}>Şifre</Text>
-                        <View style={[
-                            styles.inputWrapper,
-                            focusedField === 'password' && [styles.inputFocused, { borderColor: accentColor }]
-                        ]}>
-                            <Text style={styles.inputIcon}>🔒</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="••••••••"
-                                placeholderTextColor="#64748b"
-                                value={password}
-                                onChangeText={setPassword}
-                                secureTextEntry={!showPassword}
-                                onFocus={() => setFocusedField('password')}
-                                onBlur={() => setFocusedField(null)}
-                            />
-                            <TouchableOpacity
-                                style={styles.eyeBtn}
-                                onPress={() => setShowPassword(!showPassword)}
-                            >
-                                <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
+                    {/* Role Selector */}
+                    <Animated.View style={[
+                        styles.roleSelector,
+                        { opacity: fadeAnim }
+                    ]}>
+                        <TouchableOpacity
+                            style={[
+                                styles.roleBtn,
+                                role === 'student' && [styles.roleBtnActive, { borderColor: '#3b82f6' }]
+                            ]}
+                            onPress={() => handleRoleChange('student')}
+                        >
+                            <Text style={styles.roleBtnIcon}>🎓</Text>
+                            <Text style={[
+                                styles.roleBtnText,
+                                role === 'student' && { color: '#3b82f6', fontWeight: '700' }
+                            ]}>Öğrenci</Text>
+                        </TouchableOpacity>
 
-                    {/* Login Button */}
-                    <TouchableOpacity
-                        style={[
-                            styles.loginBtn,
-                            { backgroundColor: accentColor },
-                            loading && styles.loginBtnLoading
-                        ]}
-                        onPress={handleLogin}
-                        disabled={loading}
-                        activeOpacity={0.85}
-                    >
-                        <Text style={styles.loginBtnText}>
-                            {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
+                        <TouchableOpacity
+                            style={[
+                                styles.roleBtn,
+                                role === 'coach' && [styles.roleBtnActive, { borderColor: '#a855f7' }]
+                            ]}
+                            onPress={() => handleRoleChange('coach')}
+                        >
+                            <Text style={styles.roleBtnIcon}>👨‍🏫</Text>
+                            <Text style={[
+                                styles.roleBtnText,
+                                role === 'coach' && { color: '#a855f7', fontWeight: '700' }
+                            ]}>Koç</Text>
+                        </TouchableOpacity>
+                    </Animated.View>
+
+                    {/* Login Card */}
+                    <Animated.View style={[
+                        styles.loginCard,
+                        { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+                    ]}>
+                        <Text style={styles.loginTitle}>
+                            {isCoach ? 'Koç Girişi' : 'Öğrenci Girişi'}
                         </Text>
-                        {!loading && <Text style={styles.loginBtnArrow}>→</Text>}
-                    </TouchableOpacity>
 
-                    {/* Forgot Password */}
-                    <TouchableOpacity style={styles.forgotBtn}>
-                        <Text style={styles.forgotText}>Şifremi Unuttum</Text>
-                    </TouchableOpacity>
-                </Animated.View>
+                        {/* Email Input */}
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>E-posta</Text>
+                            <View style={[
+                                styles.inputWrapper,
+                                focusedField === 'email' && [styles.inputFocused, { borderColor: accentColor }]
+                            ]}>
+                                <Text style={styles.inputIcon}>📧</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="ornek@email.com"
+                                    placeholderTextColor="#64748b"
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    onFocus={() => setFocusedField('email')}
+                                    onBlur={() => setFocusedField(null)}
+                                />
+                            </View>
+                        </View>
 
-                {/* Demo Info */}
-                <Animated.View style={[styles.demoSection, { opacity: fadeAnim }]}>
-                    <View style={styles.demoHeader}>
-                        <View style={[styles.demoDot, { backgroundColor: accentColor }]} />
-                        <Text style={styles.demoLabel}>Demo Hesap</Text>
+                        {/* Password Input */}
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Şifre</Text>
+                            <View style={[
+                                styles.inputWrapper,
+                                focusedField === 'password' && [styles.inputFocused, { borderColor: accentColor }]
+                            ]}>
+                                <Text style={styles.inputIcon}>🔒</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="••••••••"
+                                    placeholderTextColor="#64748b"
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    secureTextEntry={!showPassword}
+                                    onFocus={() => setFocusedField('password')}
+                                    onBlur={() => setFocusedField(null)}
+                                />
+                                <TouchableOpacity
+                                    style={styles.eyeBtn}
+                                    onPress={() => setShowPassword(!showPassword)}
+                                >
+                                    <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        {/* Login Button */}
+                        <TouchableOpacity
+                            style={[
+                                styles.loginBtn,
+                                { backgroundColor: accentColor },
+                                loading && styles.loginBtnLoading
+                            ]}
+                            onPress={handleLogin}
+                            disabled={loading}
+                            activeOpacity={0.85}
+                        >
+                            <Text style={styles.loginBtnText}>
+                                {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
+                            </Text>
+                            {!loading && <Text style={styles.loginBtnArrow}>→</Text>}
+                        </TouchableOpacity>
+
+                        {/* Remember Me */}
+                        <TouchableOpacity
+                            style={styles.rememberMeRow}
+                            onPress={() => setRememberMe(!rememberMe)}
+                            activeOpacity={0.7}
+                        >
+                            <View style={[styles.checkbox, rememberMe && [styles.checkboxActive, { backgroundColor: accentColor, borderColor: accentColor }]]}>
+                                {rememberMe && <Text style={styles.checkmark}>✓</Text>}
+                            </View>
+                            <Text style={styles.rememberMeText}>Beni Hatırla</Text>
+                        </TouchableOpacity>
+
+                        {/* Forgot Password */}
+                        <TouchableOpacity style={styles.forgotBtn}>
+                            <Text style={styles.forgotText}>Şifremi Unuttum</Text>
+                        </TouchableOpacity>
+                    </Animated.View>
+
+                    {/* Footer */}
+                    <View style={styles.footer}>
+                        <Text style={styles.footerText}>© 2024 Koçluk Platformu</Text>
                     </View>
-                    <Text style={styles.demoText}>
-                        {isCoach ? 'halilay45@gmail.com / 123456' : 'Koç seçerek demo hesabı kullanın'}
-                    </Text>
-                </Animated.View>
-
-                {/* Footer */}
-                <View style={styles.footer}>
-                    <Text style={styles.footerText}>© 2024 Koçluk Platformu</Text>
-                </View>
+                </ScrollView>
             </KeyboardAvoidingView>
         </View>
     );
@@ -277,9 +316,14 @@ const styles = StyleSheet.create({
         borderBottomLeftRadius: 100,
         borderBottomRightRadius: 100,
     },
-    content: {
+    keyboardAvoidingView: {
         flex: 1,
+    },
+    scrollContent: {
         paddingHorizontal: 24,
+        paddingTop: 40,
+        paddingBottom: 40,
+        flexGrow: 1,
         justifyContent: 'center',
     },
     header: {
@@ -416,32 +460,37 @@ const styles = StyleSheet.create({
         color: '#64748b',
         fontSize: 13,
     },
-    demoSection: {
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    demoHeader: {
+    rememberMeRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
-        marginBottom: 4,
+        marginTop: 16,
+        gap: 10,
     },
-    demoDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
+    checkbox: {
+        width: 22,
+        height: 22,
+        borderRadius: 6,
+        borderWidth: 2,
+        borderColor: '#475569',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    demoLabel: {
-        fontSize: 11,
-        color: '#64748b',
-        fontWeight: '600',
+    checkboxActive: {
+        borderColor: '#3b82f6',
+        backgroundColor: '#3b82f6',
     },
-    demoText: {
-        fontSize: 12,
-        color: '#475569',
+    checkmark: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    rememberMeText: {
+        fontSize: 14,
+        color: '#94a3b8',
     },
     footer: {
         alignItems: 'center',
+        marginTop: 'auto',
     },
     footerText: {
         fontSize: 11,

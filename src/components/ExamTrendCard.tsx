@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 
 interface Exam {
     id: string;
@@ -123,15 +123,15 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     addButton: {
-        backgroundColor: 'rgba(168, 85, 247, 0.2)',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 10,
+        backgroundColor: '#A855F7',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 12,
     },
     addButtonText: {
-        color: '#A855F7',
-        fontSize: 13,
-        fontWeight: '600',
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '700',
     },
     trendBadge: {
         alignSelf: 'flex-start',
@@ -194,95 +194,5 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 14,
         fontWeight: '600',
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalContent: {
-        backgroundColor: '#1E293B',
-        borderRadius: 24,
-        padding: 24,
-        width: '85%',
-    },
-    modalTitle: {
-        color: '#fff',
-        fontSize: 20,
-        fontWeight: '700',
-        marginBottom: 24,
-        textAlign: 'center',
-    },
-    inputGroup: {
-        marginBottom: 20,
-    },
-    inputLabel: {
-        color: '#94A3B8',
-        fontSize: 13,
-        marginBottom: 8,
-    },
-    input: {
-        backgroundColor: 'rgba(30, 41, 59, 0.8)',
-        borderRadius: 12,
-        padding: 14,
-        color: '#fff',
-        fontSize: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-    },
-    typeRow: {
-        flexDirection: 'row',
-        gap: 10,
-    },
-    typeButton: {
-        flex: 1,
-        backgroundColor: 'rgba(30, 41, 59, 0.8)',
-        padding: 12,
-        borderRadius: 10,
-        alignItems: 'center',
-        borderWidth: 2,
-        borderColor: 'transparent',
-    },
-    typeButtonSelected: {
-        borderColor: '#A855F7',
-        backgroundColor: 'rgba(168, 85, 247, 0.15)',
-    },
-    typeButtonText: {
-        color: '#94A3B8',
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    typeButtonTextSelected: {
-        color: '#A855F7',
-    },
-    modalActions: {
-        flexDirection: 'row',
-        gap: 12,
-        marginTop: 8,
-    },
-    cancelButton: {
-        flex: 1,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        padding: 14,
-        borderRadius: 12,
-        alignItems: 'center',
-    },
-    cancelButtonText: {
-        color: '#94A3B8',
-        fontSize: 15,
-        fontWeight: '600',
-    },
-    saveButton: {
-        flex: 1,
-        backgroundColor: '#A855F7',
-        padding: 14,
-        borderRadius: 12,
-        alignItems: 'center',
-    },
-    saveButtonText: {
-        color: '#fff',
-        fontSize: 15,
-        fontWeight: '700',
     },
 });

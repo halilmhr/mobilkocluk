@@ -3,28 +3,24 @@ import {
     View,
     Text,
     StyleSheet,
-    SafeAreaView,
     ScrollView,
     TouchableOpacity,
     Alert,
     Linking,
     Platform,
-    TextInput
+    TextInput,
+    ActivityIndicator,
+    BackHandler,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Card } from '../components/Card';
-import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
-import { Input } from '../components/Input';
 import { GlassCard } from '../components/GlassCard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useApp } from '../context/AppContext';
-import { DailyCheckinCard } from '../components/DailyCheckinCard';
-import { StudyTimeCard } from '../components/StudyTimeCard';
 import { ExamTrendCard } from '../components/ExamTrendCard';
 import { StreakCalendar } from '../components/StreakCalendar';
 import { HomeworkListCard } from '../components/HomeworkListCard';
-import { SubjectProgressCard } from '../components/SubjectProgressCard';
 import { DailyQuestionsCard } from '../components/DailyQuestionsCard';
 import { useStudentBehavior } from '../hooks/useStudentBehavior';
 import { getLocalDateString, SUBJECTS_DATA, EXAM_TYPES, getYouTubeSearchUrl, TYT_SUBJECTS, getSubjectsForTrialExam, getSubjectsDataKey } from '../constants';
@@ -494,18 +490,22 @@ const styles = StyleSheet.create({
     },
     mainTab: {
         flex: 1,
-        paddingVertical: 12,
+        paddingVertical: 10,
+        marginHorizontal: 4,
         alignItems: 'center',
-        borderBottomWidth: 2,
-        borderBottomColor: 'transparent',
+        borderRadius: 12,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderWidth: 1,
+        borderColor: 'transparent',
     },
     activeMainTab: {
-        borderBottomColor: '#00FFFF',
+        backgroundColor: 'rgba(0, 255, 255, 0.1)',
+        borderColor: 'rgba(0, 255, 255, 0.3)',
     },
     mainTabText: {
         color: 'rgba(255, 255, 255, 0.4)',
-        fontSize: 14,
-        fontWeight: '600',
+        fontSize: 13,
+        fontWeight: 'bold',
     },
     activeMainTabText: {
         color: '#00FFFF',
@@ -539,6 +539,7 @@ const styles = StyleSheet.create({
 });
 
 export const StudentDashboardScreen: React.FC<Props> = ({ navigation }) => {
+    const insets = useSafeAreaInsets();
     const {
         currentUser,
         students,
@@ -589,7 +590,38 @@ export const StudentDashboardScreen: React.FC<Props> = ({ navigation }) => {
     const [examName, setExamName] = useState('');
     const [examResults, setExamResults] = useState<SubjectResult[]>([]);
     const [bookName, setBookName] = useState('');
+    const [isProfileModalOpen, setProfileModalOpen] = useState(false);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [expandedSubjects, setExpandedSubjects] = useState<Record<string, boolean>>({});
     const [activeTab, setActiveTab] = useState<MainTab>('dashboard');
+
+    // Android Back Button Handling
+    useEffect(() => {
+        const backAction = () => {
+            // Close any open modals first
+            if (isDailyLogOpen) { setDailyLogOpen(false); return true; }
+            if (isExamModalOpen) { setExamModalOpen(false); return true; }
+            if (isAssignmentModalOpen) { setAssignmentModalOpen(false); return true; }
+            if (isSubjectModalOpen) { setSubjectModalOpen(false); return true; }
+            if (isBookModalOpen) { setBookModalOpen(false); return true; }
+            if (isProfileModalOpen) { setProfileModalOpen(false); return true; }
+
+            // Then handle tab navigation
+            if (activeTab !== 'dashboard') {
+                setActiveTab('dashboard');
+                return true;
+            }
+
+            return false;
+        };
+
+        const backHandler = BackHandler.addEventListener(
+            'hardwareBackPress',
+            backAction
+        );
+
+        return () => backHandler.remove();
+    }, [isDailyLogOpen, isExamModalOpen, isAssignmentModalOpen, isSubjectModalOpen, isBookModalOpen, isProfileModalOpen, activeTab]);
 
     const handleSaveExam = async () => {
         if (!studentData || !examName) {
@@ -625,7 +657,16 @@ export const StudentDashboardScreen: React.FC<Props> = ({ navigation }) => {
     const assignmentsByDate = useMemo(() => {
         if (!studentData) return {};
         const result: Record<string, any[]> = {};
+        const today = new Date();
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(today.getDate() - 3);
+        const threeDaysAgoStr = getLocalDateString(threeDaysAgo);
+
         studentData.assignments.forEach(a => {
+            // Filter out stale overdue assignments (> 3 days old and not completed) for the calendar dots
+            const isStale = !a.isCompleted && a.dueDate < threeDaysAgoStr;
+            if (isStale) return;
+
             if (!result[a.dueDate]) result[a.dueDate] = [];
             result[a.dueDate].push(a);
         });
@@ -639,25 +680,47 @@ export const StudentDashboardScreen: React.FC<Props> = ({ navigation }) => {
 
     const subjectsForTrialExam = useMemo(() => {
         if (!studentData) return [];
-        const defaultSubjects = getSubjectsForTrialExam(studentData.examType, (trialExamType === 'HEPSİ' ? 'TYT' : trialExamType) as any);
-        if (!studentData.subjects || studentData.subjects.length === 0) return defaultSubjects;
-        if (trialExamType === 'HEPSİ') return studentData.subjects;
-        if (studentData.examType !== EXAM_TYPES.TYT_AYT) return studentData.subjects;
+        if (studentData.examType !== EXAM_TYPES.TYT_AYT) {
+            return studentData.subjects;
+        }
+
+        // HEPSİ: return all assigned subjects
+        if (trialExamType === 'HEPSİ') {
+            return studentData.subjects;
+        }
 
         const tytSubjectKeys = Object.keys(TYT_SUBJECTS);
         const aytSubjectKeys = ['Matematik (AYT)', 'Geometri', 'Fizik (AYT)', 'Kimya (AYT)', 'Biyoloji (AYT)', 'Türk Dili ve Edebiyatı', 'Tarih (AYT)', 'Coğrafya (AYT)', 'Felsefe Grubu'];
-        const relevantSubjects = trialExamType === 'TYT' ? tytSubjectKeys : aytSubjectKeys;
-        const normalize = (s: string) => s.trim().toLocaleLowerCase('tr-TR');
-        const normalizedRelevant = relevantSubjects.map(normalize);
 
-        const filtered = studentData.subjects.filter(s => normalizedRelevant.includes(normalize(s)));
-        return filtered.length > 0 ? filtered : studentData.subjects;
+        let relevantSubjects: string[];
+        if (trialExamType === 'TYT') {
+            relevantSubjects = tytSubjectKeys;
+        } else { // 'AYT'
+            relevantSubjects = aytSubjectKeys;
+        }
+
+        return studentData.subjects.filter(s => relevantSubjects.includes(s));
     }, [studentData, trialExamType]);
 
     // Handlers
-    const handleLogout = async () => {
-        await logout();
-        navigation.reset({ index: 0, routes: [{ name: 'RoleSelection' }] });
+    const handleLogout = () => {
+        Alert.alert(
+            'Çıkış Yap',
+            'Çıkış yapmak istediğinize emin misiniz?',
+            [
+                { text: 'Vazgeç', style: 'cancel' },
+                {
+                    text: 'Çıkış Yap',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setIsLoggingOut(true);
+                        setProfileModalOpen(false);
+                        await logout();
+                        navigation.reset({ index: 0, routes: [{ name: 'Login', params: { role: 'student' } }] });
+                    }
+                }
+            ]
+        );
     };
 
     const changeMonth = (offset: number) => {
@@ -805,11 +868,22 @@ export const StudentDashboardScreen: React.FC<Props> = ({ navigation }) => {
         }
     }, [isExamModalOpen, subjectsForTrialExam]);
 
-    if (!studentData) {
+    if (!studentData && !isLoggingOut) {
         return (
             <SafeAreaView style={styles.container}>
-                <Text style={styles.loadingText}>Yükleniyor...</Text>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F1115' }}>
+                    <Text style={styles.loadingText}>Yükleniyor...</Text>
+                </View>
             </SafeAreaView>
+        );
+    }
+
+    if (isLoggingOut) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F1115' }}>
+                <ActivityIndicator size="large" color="#00FFFF" />
+                <Text style={{ color: '#00FFFF', marginTop: 16, fontWeight: '600' }}>Güvenli Çıkış Yapılıyor...</Text>
+            </View>
         );
     }
 
@@ -887,54 +961,76 @@ export const StudentDashboardScreen: React.FC<Props> = ({ navigation }) => {
     const renderDashboard = () => {
         if (!studentData) return null;
 
-        // Group behavior progress by subject
-        const groupedSubjects = behaviorProgress.reduce((acc: any[], curr) => {
-            const existingSubject = acc.find(s => s.name === curr.subject);
-            if (existingSubject) {
-                existingSubject.topics.push({ id: curr.id, name: curr.topic, status: curr.status });
-            } else {
-                acc.push({
-                    name: curr.subject,
-                    topics: [{ id: curr.id, name: curr.topic, status: curr.status }]
-                });
-            }
-            return acc;
-        }, []);
+        const todayStr = getLocalDateString();
+        const todayAssignments = studentData.assignments.filter(a => a.dueDate === todayStr);
+        const selectedDayAssignments = assignmentsForSelectedDay;
 
         return (
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 100 + insets.bottom }}>
                 {/* Header */}
-                <View style={[styles.bentoHeader, { marginBottom: 20 }]}>
+                <View style={[styles.bentoHeader, { marginBottom: 10 }]}>
                     <View style={styles.headerTextContainer}>
                         <Text style={styles.welcomeLine1}>Hoş Geldin,</Text>
                         <Text style={styles.studentNameHeader}>{studentData.name}</Text>
                     </View>
-                    <TouchableOpacity onPress={handleLogout} style={styles.avatarPlaceholder}>
+                    <TouchableOpacity onPress={() => setProfileModalOpen(true)} style={styles.avatarPlaceholder}>
                         <Text style={styles.avatarText}>{studentData.name.charAt(0)}</Text>
                     </TouchableOpacity>
                 </View>
 
-                {/* 1. Daily Check-in */}
-                <DailyCheckinCard
-                    hasCheckedInToday={hasCheckedInToday}
-                    onSubmit={submitDailyCheckin}
-                />
+                {/* 1. Exam Trend & Daily Questions - Side by Side */}
+                <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+                    {/* Sınav Trendi Card */}
+                    <TouchableOpacity
+                        style={{
+                            flex: 1,
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            borderRadius: 20,
+                            padding: 16,
+                            borderWidth: 1,
+                            borderColor: 'rgba(168, 85, 247, 0.3)',
+                        }}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                            setExamResults(subjectsForTrialExam.map(s => ({ subject: s, correct: 0, incorrect: 0, blank: 0 })));
+                            setExamModalOpen(true);
+                        }}
+                    >
+                        <View style={{
+                            width: 40, height: 40, borderRadius: 12,
+                            backgroundColor: 'rgba(168, 85, 247, 0.15)',
+                            justifyContent: 'center', alignItems: 'center', marginBottom: 12,
+                        }}>
+                            <Text style={{ fontSize: 20 }}>📈</Text>
+                        </View>
+                        <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700', marginBottom: 4 }}>Sınav Trendi</Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, lineHeight: 16 }}>
+                            {behaviorExams.length > 0
+                                ? `Son: ${(behaviorExams[behaviorExams.length - 1].netScore).toFixed(1)} net`
+                                : 'Sonuç ekle'}
+                        </Text>
+                        <View style={{
+                            marginTop: 12,
+                            backgroundColor: '#A855F7',
+                            paddingVertical: 8,
+                            borderRadius: 10,
+                            alignItems: 'center',
+                        }}>
+                            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>+ Ekle</Text>
+                        </View>
+                    </TouchableOpacity>
 
-                <StudyTimeCard
-                    hasLoggedToday={hasLoggedStudyTimeToday}
-                    selectedDuration={todayStudyDuration as any}
-                    onSelect={logStudyTime}
-                />
+                    {/* Soru Çözümü Card */}
+                    <DailyQuestionsCard
+                        subjects={studentData.subjects}
+                        onSave={logDailyQuestions}
+                    />
+                </View>
 
-                {/* 5. Daily Questions */}
-                <DailyQuestionsCard
-                    subjects={studentData.subjects}
-                    onSave={logDailyQuestions}
-                />
-
-                {/* 2. Homework Interaction */}
+                {/* 3. Today's Homework */}
                 <HomeworkListCard
-                    assignments={studentData.assignments}
+                    title="Bugünkü Ödevlerim"
+                    assignments={todayAssignments}
                     onComplete={(id, difficulty) => {
                         const assignment = studentData.assignments.find(a => a.id === id);
                         if (assignment) {
@@ -944,42 +1040,56 @@ export const StudentDashboardScreen: React.FC<Props> = ({ navigation }) => {
                     }}
                 />
 
-                {/* 4. Exam Trend */}
-                <ExamTrendCard
-                    exams={behaviorExams}
-                    onAddPress={() => {
-                        const typeForSubjects = trialExamType === 'HEPSİ' ? 'TYT' : trialExamType;
-                        const subjects = getSubjectsForTrialExam(studentData.examType || 'TYT', typeForSubjects as any);
-                        setExamResults(subjects.map(s => ({ subject: s, correct: 0, incorrect: 0, blank: 0 })));
-                        setExamModalOpen(true);
-                    }}
-                />
-
-                {/* 6. Streak & Consistency */}
+                {/* 4. Calendar & Consistency */}
                 <StreakCalendar
-                    productiveDays={productiveDays}
-                    currentStreak={currentStreak}
+                    selectedDate={getLocalDateString(selectedDate)}
+                    onSelectDate={(dateStr) => setSelectedDate(new Date(dateStr))}
+                    assignmentsByDate={assignmentsByDate}
                 />
 
-                {/* 3. Subject & Topic Progress */}
-                {groupedSubjects.length > 0 && (
-                    <SubjectProgressCard
-                        subjects={groupedSubjects}
-                        onTopicStatusChange={(subject, topicId, status) => {
-                            const topic = behaviorProgress.find(p => p.id === topicId);
-                            if (topic) {
-                                updateTopicStatus(subject, topic.topic, status);
-                            }
-                        }}
-                    />
+                {/* 5. Selected Day's Homework (Below Calendar) */}
+                {selectedDayAssignments.length > 0 && (
+                    <View style={{ marginTop: 8 }}>
+                        <Text style={[styles.streakTitle, { fontSize: 14, marginBottom: 12, marginLeft: 4 }]}>
+                            {selectedDate.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })} Ödevleri
+                        </Text>
+                        {selectedDayAssignments.map((a, index) => (
+                            <View key={`selected-day-assignment-${a.id || index}`}>
+                                <View style={styles.assignmentItem}>
+                                    <TouchableOpacity
+                                        onPress={() => setExpandedAssignmentId(expandedAssignmentId === a.id ? null : a.id)}
+                                        style={styles.assignmentInfo}
+                                    >
+                                        <View style={styles.assignmentTitleRow}>
+                                            <Text style={[styles.assignmentTitle, a.isCompleted && styles.completedText]}>
+                                                {a.title}
+                                            </Text>
+                                            <Text style={styles.expandArrow}>{expandedAssignmentId === a.id ? '▲' : '▼'}</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.checkbox, a.isCompleted && styles.checkboxCompleted]}
+                                        onPress={() => toggleAssignmentCompletion(studentData.id, a.id)}
+                                    >
+                                        {a.isCompleted && <Text style={styles.checkmark}>✓</Text>}
+                                    </TouchableOpacity>
+                                </View>
+                                {expandedAssignmentId === a.id && (
+                                    <View style={styles.assignmentExpContent}>
+                                        <Text style={styles.assignmentDesc}>{a.description || 'Açıklama belirtilmemiş'}</Text>
+                                    </View>
+                                )}
+                            </View>
+                        ))}
+                    </View>
                 )}
             </ScrollView>
         );
     };
 
     const renderAssignmentsView = () => (
-        <View style={{ paddingBottom: 20 }}>
-            <View style={styles.calendarHeaderRow}>
+        <View style={{ paddingBottom: 20, paddingTop: 10 }}>
+            <View style={[styles.calendarHeaderRow, { marginBottom: 16 }]}>
                 <TouchableOpacity onPress={() => changeMonth(-1)} style={{ padding: 10 }}>
                     <Text style={{ color: '#00FFFF', fontSize: 18 }}>◀</Text>
                 </TouchableOpacity>
@@ -991,7 +1101,7 @@ export const StudentDashboardScreen: React.FC<Props> = ({ navigation }) => {
                 </TouchableOpacity>
             </View>
 
-            {renderAssignmentCalendarModal()}
+            {renderStreakCalendar()}
 
             <View style={{ marginTop: 24 }}>
                 <Text style={[styles.streakTitle, { fontSize: 14, marginBottom: 12 }]}>
@@ -1036,37 +1146,51 @@ export const StudentDashboardScreen: React.FC<Props> = ({ navigation }) => {
         </View>
     );
 
+    const toggleSubjectExpanded = (subject: string) => {
+        setExpandedSubjects(prev => ({ ...prev, [subject]: !prev[subject] }));
+    };
+
     const renderSubjectsView = () => (
         <View style={{ paddingBottom: 20 }}>
             <GlassCard style={{ padding: 20 }}>
                 <Text style={styles.subjectsTitle}>📚 Konu Takibi</Text>
-                {studentData.subjects.length === 0 ? (
+                {studentData!.subjects.length === 0 ? (
                     <Text style={{ textAlign: 'center', marginVertical: 20, color: '#666' }}>Henüz takip edilecek konu bulunamadı.</Text>
                 ) : (
-                    studentData.subjects.map(subject => {
-                        const dataKey = getSubjectsDataKey(studentData.examType, studentData.grade);
+                    studentData!.subjects.map(subject => {
+                        const dataKey = getSubjectsDataKey(studentData!.examType, studentData!.grade);
                         const topics = SUBJECTS_DATA[dataKey]?.[subject] || [];
-                        const completedCount = topics.filter((t: string) => studentData.completedTopics.includes(`${subject}-${t}`)).length;
+                        const completedCount = topics.filter((t: string) => studentData!.completedTopics.includes(`${subject}-${t}`)).length;
                         const totalCount = topics.length;
                         const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+                        const isExpanded = expandedSubjects[subject] || false;
 
                         return (
                             <View key={subject} style={styles.subjectSection}>
-                                <View style={styles.subjectHeader}>
-                                    <Text style={styles.subjectName}>{subject}</Text>
-                                    <Text style={styles.subjectProgress}>{completedCount}/{totalCount} ({percentage}%)</Text>
-                                </View>
+                                <TouchableOpacity
+                                    style={styles.subjectHeader}
+                                    onPress={() => toggleSubjectExpanded(subject)}
+                                    activeOpacity={0.7}
+                                >
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.subjectName}>{subject}</Text>
+                                        <Text style={styles.subjectProgress}>{completedCount}/{totalCount} ({percentage}%)</Text>
+                                    </View>
+                                    <Text style={{ color: '#94A3B8', fontSize: 16, marginLeft: 8 }}>
+                                        {isExpanded ? '▲' : '▼'}
+                                    </Text>
+                                </TouchableOpacity>
                                 <View style={styles.progressBar}>
                                     <View style={[styles.progressFill, { width: `${percentage}%` }]} />
                                 </View>
-                                {topics.map((topic: string) => {
+                                {isExpanded && topics.map((topic: string) => {
                                     const topicKey = `${subject}-${topic}`;
-                                    const isCompleted = studentData.completedTopics.includes(topicKey);
+                                    const isCompleted = studentData!.completedTopics.includes(topicKey);
                                     return (
                                         <View key={topicKey} style={styles.topicRow}>
                                             <TouchableOpacity
                                                 style={styles.topicLeft}
-                                                onPress={() => toggleTopicCompletion(studentData.id, topicKey)}
+                                                onPress={() => toggleTopicCompletion(studentData!.id, topicKey)}
                                             >
                                                 <View style={[styles.topicCheckbox, isCompleted && styles.topicCheckboxCompleted]}>
                                                     {isCompleted && <Text style={styles.checkmark}>✓</Text>}
@@ -1089,8 +1213,87 @@ export const StudentDashboardScreen: React.FC<Props> = ({ navigation }) => {
 
     return (
         <View style={styles.dashboardContainer}>
-            <SafeAreaView style={{ flex: 1 }}>
-                {renderDashboard()}
+            <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+                {activeTab === 'dashboard' ? (
+                    renderDashboard()
+                ) : (
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
+                        {activeTab === 'assignments' && renderAssignmentsView()}
+                        {activeTab === 'subjects' && renderSubjectsView()}
+                    </ScrollView>
+                )}
+
+                {/* Profile Modal */}
+                <Modal
+                    isOpen={isProfileModalOpen}
+                    title="Profil"
+                    onClose={() => setProfileModalOpen(false)}
+                >
+                    <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                        <View style={{
+                            width: 80, height: 80, borderRadius: 40,
+                            backgroundColor: '#1A1D23', borderWidth: 2,
+                            borderColor: '#00FFFF', justifyContent: 'center', alignItems: 'center',
+                            marginBottom: 16
+                        }}>
+                            <Text style={{ color: '#00FFFF', fontSize: 32, fontWeight: 'bold' }}>
+                                {studentData.name.charAt(0)}
+                            </Text>
+                        </View>
+                        <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: 'bold' }}>{studentData.name}</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: 14, marginTop: 4 }}>
+                            {studentData.examType} ÖĞRENCİSİ
+                        </Text>
+
+                        <View style={{ width: '100%', marginTop: 32, gap: 12 }}>
+                            <TouchableOpacity
+                                style={{
+                                    backgroundColor: 'rgba(248, 113, 113, 0.15)',
+                                    padding: 18, borderRadius: 16,
+                                    flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+                                    borderWidth: 1.5, borderColor: 'rgba(248, 113, 113, 0.4)',
+                                    shadowColor: '#F87171', shadowOffset: { width: 0, height: 4 },
+                                    shadowOpacity: 0.2, shadowRadius: 8
+                                }}
+                                onPress={handleLogout}
+                            >
+                                <Text style={{ color: '#F87171', fontWeight: '900', fontSize: 16, letterSpacing: 0.5 }}>ÇIKIŞ YAP</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </Modal>
+
+                {/* Main Tab Navigation (Button Style) */}
+                <View style={{
+                    flexDirection: 'row',
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    backgroundColor: 'rgba(15, 17, 21, 1)',
+                    borderTopWidth: 1,
+                    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+                    paddingBottom: Math.max(insets.bottom, 15) + 10, // Dynamic padding based on safe area
+                }}>
+                    <TouchableOpacity
+                        style={[styles.mainTab, activeTab === 'dashboard' && styles.activeMainTab]}
+                        onPress={() => setActiveTab('dashboard')}
+                    >
+                        <Text style={[styles.mainTabText, activeTab === 'dashboard' && styles.activeMainTabText]}>Genel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.mainTab, activeTab === 'assignments' && styles.activeMainTab]}
+                        onPress={() => setActiveTab('assignments')}
+                    >
+                        <Text style={[styles.mainTabText, activeTab === 'assignments' && styles.activeMainTabText]}>Ödevler</Text>
+                    </TouchableOpacity>
+                    {studentData.examType !== EXAM_TYPES.GENEL_TAKIP && (
+                        <TouchableOpacity
+                            style={[styles.mainTab, activeTab === 'subjects' && styles.activeMainTab]}
+                            onPress={() => setActiveTab('subjects')}
+                        >
+                            <Text style={[styles.mainTabText, activeTab === 'subjects' && styles.activeMainTabText]}>Konular</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
             </SafeAreaView>
 
             {/* Trial Exam Modal */}
@@ -1115,8 +1318,6 @@ export const StudentDashboardScreen: React.FC<Props> = ({ navigation }) => {
                                 }}
                                 onPress={() => {
                                     setTrialExamType(type as any);
-                                    const subjects = getSubjectsForTrialExam(studentData?.examType || 'TYT', type as any);
-                                    setExamResults(subjects.map(s => ({ subject: s, correct: 0, incorrect: 0, blank: 0 })));
                                 }}
                             >
                                 <Text style={{ color: '#fff', fontWeight: '700' }}>{type}</Text>
@@ -1124,7 +1325,7 @@ export const StudentDashboardScreen: React.FC<Props> = ({ navigation }) => {
                         ))}
                     </View>
 
-                    <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 500 }}>
+                    <View>
                         <View style={{ marginBottom: 20 }}>
                             <Text style={{ color: '#94A3B8', fontSize: 13, marginBottom: 8 }}>Deneme Adı</Text>
                             <TextInput
@@ -1231,7 +1432,7 @@ export const StudentDashboardScreen: React.FC<Props> = ({ navigation }) => {
                         >
                             <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Sonucu Kaydet</Text>
                         </TouchableOpacity>
-                    </ScrollView>
+                    </View>
                 </View>
             </Modal>
         </View>

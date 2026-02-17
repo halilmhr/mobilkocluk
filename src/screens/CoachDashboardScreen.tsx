@@ -3,14 +3,15 @@ import {
     View,
     Text,
     StyleSheet,
-    SafeAreaView,
     ScrollView,
     TouchableOpacity,
     Alert,
     RefreshControl,
     StatusBar,
     FlatList,
+    BackHandler,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ActionCard } from '../components/ActionCard';
 import { BentoGrid, BentoItem } from '../components/BentoGrid';
@@ -38,6 +39,7 @@ import { UpgradeModal } from '../components/UpgradeModal';
 import { EXAM_TYPES, AYT_FIELDS, getSubjectsForStudent, getLocalDateString, SUBJECTS_DATA, getSubjectsDataKey, PLAN_DURATIONS, DAILY_STUDY_HOURS } from '../constants';
 import type { Student, Assignment, TrialExam, Book, BookChapter } from '../types';
 import { generateStudyPlan, extractTopicsFromImage } from '../lib/aiService';
+import { sendCoachMessage } from '../lib/notificationService';
 import * as ImagePicker from 'expo-image-picker';
 
 // Elite Control Center Components
@@ -77,6 +79,7 @@ type Props = {
 };
 
 export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
+    const insets = useSafeAreaInsets();
     const {
         currentUser,
         students,
@@ -196,16 +199,22 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
             passiveDays: calculatePassiveDays(s.lastActive),
         }));
 
-        // Overdue tasks
-        const now = new Date();
+        // Overdue tasks (bugünü hariç tut)
+        const todayMidnight = new Date();
+        todayMidnight.setHours(0, 0, 0, 0);
         const overdueTasks = myStudents.flatMap((s: any) =>
             s.assignments
-                .filter((a: any) => !a.isCompleted && new Date(a.dueDate) < now)
+                .filter((a: any) => {
+                    if (a.isCompleted) return false;
+                    const dueDate = new Date(a.dueDate);
+                    dueDate.setHours(0, 0, 0, 0);
+                    return dueDate < todayMidnight;
+                })
                 .map((a: any) => ({
                     studentName: s.name,
                     title: a.title,
                     dueDate: a.dueDate,
-                    daysOverdue: Math.ceil((now.getTime() - new Date(a.dueDate).getTime()) / (1000 * 60 * 60 * 24)),
+                    daysOverdue: Math.ceil((todayMidnight.getTime() - new Date(a.dueDate).getTime()) / (1000 * 60 * 60 * 24)),
                 }))
         );
 
@@ -299,6 +308,29 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
     const [isAddAssignmentOpen, setAddAssignmentOpen] = useState(false);
     const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
     const [expandedSubjects, setExpandedSubjects] = useState<string[]>([]);
+
+    // Coach Message Modal
+    const [messageModalStudent, setMessageModalStudent] = useState<Student | null>(null);
+    const [coachMessage, setCoachMessage] = useState('');
+    const [isSendingMessage, setIsSendingMessage] = useState(false);
+
+    // Android Back Button Handling
+    useEffect(() => {
+        const backAction = () => {
+            if (selectedStudent) {
+                setSelectedStudent(null);
+                return true;
+            }
+            return false;
+        };
+
+        const backHandler = BackHandler.addEventListener(
+            'hardwareBackPress',
+            backAction
+        );
+
+        return () => backHandler.remove();
+    }, [selectedStudent]);
 
     // Memoized student data for AI assistant to avoid unnecessary re-fetches
     const selectedStudentData = useMemo(() => {
@@ -401,6 +433,16 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
         };
     }, [selectedStudent, studentBehavior.productiveDays]);
 
+    // Build set of completed book topics from assignment titles
+    const completedBookTopics = useMemo(() => {
+        const completed = new Set<string>();
+        if (!selectedStudent) return completed;
+        selectedStudent.assignments
+            .filter(a => a.isCompleted)
+            .forEach(a => completed.add(a.title));
+        return completed;
+    }, [selectedStudent]);
+
     // Assignment Calendar state
     const [calendarSelectedDate, setCalendarSelectedDate] = useState(new Date());
     const [calendarCurrentMonth, setCalendarCurrentMonth] = useState(new Date());
@@ -417,6 +459,7 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
             setStudentExamType(selectedStudent.examType);
             setStudentField(selectedStudent.field || '');
             setStudentGrade(String(selectedStudent.grade));
+            setTempSubjects(selectedStudent.subjects || []);
         } else {
             resetStudentForm();
         }
@@ -439,6 +482,7 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
     const [studentExamType, setStudentExamType] = useState('');
     const [studentField, setStudentField] = useState('');
     const [studentGrade, setStudentGrade] = useState('');
+    const [tempSubjects, setTempSubjects] = useState<string[]>([]);
 
     // Add Assignment Form
     const [assignmentTitle, setAssignmentTitle] = useState('');
@@ -447,7 +491,7 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
 
     const handleLogout = async () => {
         await logout();
-        navigation.reset({ index: 0, routes: [{ name: 'RoleSelection' }] });
+        navigation.reset({ index: 0, routes: [{ name: 'Login', params: { role: 'coach' } }] });
     };
 
     const handleAddStudent = () => {
@@ -656,7 +700,7 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
             });
 
             const topicCount = newChapters.reduce((acc, c) => acc + c.topics.length, 0);
-            Alert.alert('Başarılı', `${newChapters.length} ünite ve ${topicCount} yeni konu bulundu.\n\nBaşka sayfa varsa "📷 Başka Sayfa Çek" butonuna bas.`);
+            // Topics are now displayed visually in the modal for coach approval
         } catch (error: any) {
             console.error('[Book] AI analysis error:', error);
             Alert.alert('Hata', error?.message || 'İçindekiler analizi başarısız oldu.');
@@ -729,6 +773,11 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
             grade: parseInt(studentGrade),
             examType: studentExamType,
             field: studentField || undefined,
+            subjects: tempSubjects,
+            completedTopics: (selectedStudent.completedTopics || []).filter(topicKey => {
+                const [subjectName] = topicKey.split('-');
+                return tempSubjects.includes(subjectName);
+            }),
         });
 
         Alert.alert('Başarılı', 'Öğrenci bilgileri güncellendi.');
@@ -835,27 +884,50 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
-                <View style={styles.headerLeft}>
-                    <View style={styles.avatar}>
-                        <Text style={styles.avatarText}>🎓</Text>
+        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+            {/* Header - Sticky Header Implementation */}
+            {selectedStudent === null ? (
+                <View style={styles.header}>
+                    <View style={styles.headerLeft}>
+                        <View style={styles.avatar}>
+                            <Text style={styles.avatarText}>🎓</Text>
+                        </View>
+                        <View>
+                            <Text style={styles.welcomeText}>Koç Paneli</Text>
+                            <Text style={styles.subtitleText}>{currentUser?.name}</Text>
+                        </View>
                     </View>
-                    <View>
-                        <Text style={styles.welcomeText}>Koç Paneli</Text>
-                        <Text style={styles.subtitleText}>{currentUser?.name}</Text>
+                    <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+                        <Text style={styles.logoutText}>🚪</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : (
+                /* Sticky Student Detail Header */
+                <View style={styles.androidHeader}>
+                    <View style={styles.androidHeaderTop}>
+                        <TouchableOpacity onPress={() => setSelectedStudent(null)} style={styles.androidBackBtn}>
+                            <Text style={styles.androidBackIcon}>←</Text>
+                        </TouchableOpacity>
+                        <View style={styles.androidHeaderTitles}>
+                            <Text style={styles.androidStudentName}>{selectedStudent.name}</Text>
+                            <Text style={styles.androidStudentSub}>{selectedStudent.examType} • {selectedStudent.grade}. Sınıf</Text>
+                        </View>
+                        <View style={styles.headerIconsRow}>
+                            <TouchableOpacity
+                                style={[styles.headerIconBtn, activeTab === 'settings' && styles.headerIconBtnActive]}
+                                onPress={() => setActiveTab('settings')}
+                            >
+                                <Text style={styles.headerIconEmoji}>⚙️</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
-                <Button onPress={handleLogout} variant="secondary" style={styles.logoutButton}>
-                    <Text style={styles.logoutText}>Çıkış</Text>
-                </Button>
-            </View>
+            )}
 
             <ScrollView
                 ref={scrollRef}
                 style={styles.content}
-                contentContainerStyle={{ paddingBottom: 80 }}
+                contentContainerStyle={{ paddingBottom: 80 + insets.bottom }}
                 showsVerticalScrollIndicator={false}
                 refreshControl={
                     <RefreshControl
@@ -894,7 +966,8 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
                                 riskInfo: getStudentRiskInfo(s),
                             })) as StudentWithRisk[]}
                             onSendMessage={(student: Student) => {
-                                Alert.alert('Mesaj Gönder', `${student.name} öğrencisine mesaj gönderilecek.`);
+                                setMessageModalStudent(student);
+                                setCoachMessage('');
                             }}
                             onUpdateProgram={(student: Student) => {
                                 setSelectedStudent(student);
@@ -908,26 +981,55 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
                                 const riskInfo = getStudentRiskInfo(s);
                                 return riskInfo.label === 'Kritik' || riskInfo.label === 'Dikkat';
                             }).length}
-                            overdueCount={getTotalOverdueCount(myStudents)}
-                            inactiveCount={myStudents.filter(s => {
-                                const riskInfo = getStudentRiskInfo(s);
-                                return riskInfo.passiveDays >= 3;
-                            }).length}
+                            overdueCount={premiumStats.overdueTasks.length}
                             behindStudents={myStudents.filter(s => {
                                 const riskInfo = getStudentRiskInfo(s);
                                 return riskInfo.label === 'Kritik' || riskInfo.label === 'Dikkat';
-                            }).map(s => ({
-                                name: s.name,
-                                detail: `Risk: ${getStudentRiskInfo(s).label}`
-                            }))}
-                            overdueItems={premiumStats.overdueTasks.map(t => ({
-                                name: t.studentName,
-                                detail: `${t.title} - ${new Date(t.dueDate).toLocaleDateString('tr-TR')}`
-                            }))}
-                            inactiveStudents={premiumStats.passiveStudents.map(s => ({
-                                name: s.name,
-                                detail: `${s.passiveDays} gündür inaktif`
-                            }))}
+                            }).map(s => {
+                                const ri = getStudentRiskInfo(s);
+                                const reasons: string[] = [];
+                                // İnaktiflik
+                                if (ri.passiveDays > 0) reasons.push(`📵 ${ri.passiveDays} gündür giriş yapmamış`);
+                                // Geciken ödevler (isimleriyle)
+                                const overdueAssignments = s.assignments.filter(a => {
+                                    if (a.isCompleted) return false;
+                                    const d = new Date(a.dueDate); d.setHours(0, 0, 0, 0);
+                                    const t = new Date(); t.setHours(0, 0, 0, 0);
+                                    return d < t;
+                                });
+                                if (overdueAssignments.length > 0) {
+                                    const names = overdueAssignments.slice(0, 3).map(a => a.title).join(', ');
+                                    reasons.push(`📋 ${overdueAssignments.length} ödev gecikmiş: ${names}${overdueAssignments.length > 3 ? '...' : ''}`);
+                                }
+                                // Haftalık tamamlama oranı
+                                if (ri.weeklyCompletionRate < 50) reasons.push(`📊 Haftalık tamamlama: %${ri.weeklyCompletionRate}`);
+                                // Performans düşüşü
+                                if (ri.weeklyChange < 0) reasons.push(`📉 Geçen haftaya göre %${Math.abs(ri.weeklyChange)} düşüş`);
+                                // Bugünkü ödev durumu
+                                const todayStr = new Date().toISOString().split('T')[0];
+                                const todayAssignments = s.assignments.filter(a => a.dueDate.split('T')[0] === todayStr);
+                                if (todayAssignments.length > 0) {
+                                    const done = todayAssignments.filter(a => a.isCompleted).length;
+                                    reasons.push(`📝 Bugün: ${done}/${todayAssignments.length} ödev tamamlandı`);
+                                }
+                                return {
+                                    name: s.name,
+                                    detail: reasons.length > 0 ? reasons.join('\n') : `Risk: ${ri.label}`
+                                };
+                            })}
+                            overdueItems={(() => {
+                                // Öğrenciye göre grupla
+                                const grouped: Record<string, { count: number; titles: string[] }> = {};
+                                premiumStats.overdueTasks.forEach((t: any) => {
+                                    if (!grouped[t.studentName]) grouped[t.studentName] = { count: 0, titles: [] };
+                                    grouped[t.studentName].count++;
+                                    grouped[t.studentName].titles.push(t.title);
+                                });
+                                return Object.entries(grouped).map(([name, info]) => ({
+                                    name,
+                                    detail: `${info.count} ödev gecikmiş: ${info.titles.slice(0, 3).join(', ')}${info.titles.length > 3 ? '...' : ''}`
+                                }));
+                            })()}
                         />
 
 
@@ -951,27 +1053,6 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
                 ) : (
                     /* Selected Student Details Section - "The Cockpit" */
                     <View style={{ flex: 1 }}>
-                        {/* Android Style Header */}
-                        <View style={styles.androidHeader}>
-                            <View style={styles.androidHeaderTop}>
-                                <TouchableOpacity onPress={() => setSelectedStudent(null)} style={styles.androidBackBtn}>
-                                    <Text style={styles.androidBackIcon}>←</Text>
-                                </TouchableOpacity>
-                                <View style={styles.androidHeaderTitles}>
-                                    <Text style={styles.androidStudentName}>{selectedStudent.name}</Text>
-                                    <Text style={styles.androidStudentSub}>{selectedStudent.examType} • {selectedStudent.grade}. Sınıf</Text>
-                                </View>
-                                <View style={styles.headerIconsRow}>
-                                    <TouchableOpacity
-                                        style={[styles.headerIconBtn, activeTab === 'settings' && styles.headerIconBtnActive]}
-                                        onPress={() => setActiveTab('settings')}
-                                    >
-                                        <Text style={styles.headerIconEmoji}>⚙️</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        </View>
-
                         {/* Content Area */}
                         <View style={styles.tabContent}>
 
@@ -1172,24 +1253,30 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
 
                                                                                     {isExpanded && chapter.topics.length > 0 && (
                                                                                         <View style={{ paddingLeft: 16, marginTop: 4 }}>
-                                                                                            {chapter.topics.map((topic, tIdx) => (
-                                                                                                <TouchableOpacity
-                                                                                                    key={tIdx}
-                                                                                                    style={{
-                                                                                                        padding: 12,
-                                                                                                        backgroundColor: '#1e293b40',
-                                                                                                        borderRadius: 8,
-                                                                                                        marginBottom: 2,
-                                                                                                        flexDirection: 'row',
-                                                                                                        justifyContent: 'space-between',
-                                                                                                        alignItems: 'center'
-                                                                                                    }}
-                                                                                                    onPress={() => handleAssignTopicFromBook(selectedBookForAssignment, topic)}
-                                                                                                >
-                                                                                                    <Text style={{ color: '#94a3b8', fontSize: 13 }}>{topic}</Text>
-                                                                                                    <Text style={{ color: '#a855f7', fontSize: 11 }}>+</Text>
-                                                                                                </TouchableOpacity>
-                                                                                            ))}
+                                                                                            {chapter.topics.map((topic, tIdx) => {
+                                                                                                const topicKey = `${selectedBookForAssignment.name} - ${topic}`;
+                                                                                                const isDone = completedBookTopics.has(topicKey);
+                                                                                                return (
+                                                                                                    <TouchableOpacity
+                                                                                                        key={tIdx}
+                                                                                                        style={{
+                                                                                                            padding: 12,
+                                                                                                            backgroundColor: isDone ? '#10b98122' : '#1e293b40',
+                                                                                                            borderRadius: 8,
+                                                                                                            marginBottom: 2,
+                                                                                                            flexDirection: 'row',
+                                                                                                            justifyContent: 'space-between',
+                                                                                                            alignItems: 'center',
+                                                                                                            borderLeftWidth: isDone ? 3 : 0,
+                                                                                                            borderLeftColor: '#10b981',
+                                                                                                        }}
+                                                                                                        onPress={() => handleAssignTopicFromBook(selectedBookForAssignment, topic)}
+                                                                                                    >
+                                                                                                        <Text style={{ color: isDone ? '#10b981' : '#94a3b8', fontSize: 13, fontWeight: isDone ? '600' : '400' }}>{isDone ? '✅ ' : ''}{topic}</Text>
+                                                                                                        {!isDone && <Text style={{ color: '#a855f7', fontSize: 11 }}>+</Text>}
+                                                                                                    </TouchableOpacity>
+                                                                                                );
+                                                                                            })}
                                                                                         </View>
                                                                                     )}
                                                                                 </View>
@@ -1202,88 +1289,7 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
                                                     </View>
                                                 )}
 
-                                                {/* Add Book Modal/Form */}
-                                                {showAddBookModal && (
-                                                    <View style={{ backgroundColor: '#0f172a', borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#a855f7' }}>
-                                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                                                            <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>📚 Yeni Kitap Ekle</Text>
-                                                            <TouchableOpacity onPress={() => setShowAddBookModal(false)}>
-                                                                <Text style={{ color: '#94a3b8', fontSize: 20 }}>✕</Text>
-                                                            </TouchableOpacity>
-                                                        </View>
 
-                                                        <Text style={{ color: '#94a3b8', fontSize: 12, marginBottom: 6 }}>Kitap Adı</Text>
-                                                        <Input
-                                                            value={newBookName}
-                                                            onChangeText={setNewBookName}
-                                                            placeholder="Örn: TYT Matematik Soru Bankası"
-                                                        />
-
-                                                        <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 12, marginBottom: 6 }}>Ders (Opsiyonel)</Text>
-                                                        <Input
-                                                            value={newBookSubject}
-                                                            onChangeText={setNewBookSubject}
-                                                            placeholder="Örn: Matematik"
-                                                        />
-
-                                                        {/* Topic Counter */}
-                                                        {accumulatedChapters.length > 0 && (
-                                                            <View style={{ backgroundColor: '#10b98122', padding: 10, borderRadius: 8, marginTop: 12, borderLeftWidth: 3, borderLeftColor: '#10b981' }}>
-                                                                <Text style={{ color: '#10b981', fontWeight: '700', fontSize: 14 }}>
-                                                                    ✅ {accumulatedChapters.length} konu bulundu
-                                                                </Text>
-                                                                <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 4 }}>
-                                                                    Başka sayfa varsa tekrar fotoğraf çekebilirsin.
-                                                                </Text>
-                                                            </View>
-                                                        )}
-
-                                                        <View style={{ marginTop: 16 }}>
-                                                            {/* Take Photo Button */}
-                                                            <TouchableOpacity
-                                                                style={{
-                                                                    backgroundColor: isAnalyzingToc ? '#475569' : '#a855f7',
-                                                                    padding: 14,
-                                                                    borderRadius: 8,
-                                                                    flexDirection: 'row',
-                                                                    justifyContent: 'center',
-                                                                    alignItems: 'center',
-                                                                }}
-                                                                onPress={handleTakePhoto}
-                                                                disabled={isAnalyzingToc}
-                                                            >
-                                                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
-                                                                    {isAnalyzingToc ? '🤖 AI Analiz Ediyor...' : accumulatedChapters.length > 0 ? '📷 Başka Sayfa Çek' : '📷 İçindekiler Fotoğrafı Çek'}
-                                                                </Text>
-                                                            </TouchableOpacity>
-
-                                                            {/* Save Button (only if topics exist) */}
-                                                            {accumulatedChapters.length > 0 && (
-                                                                <TouchableOpacity
-                                                                    style={{
-                                                                        backgroundColor: '#10b981',
-                                                                        padding: 14,
-                                                                        borderRadius: 8,
-                                                                        flexDirection: 'row',
-                                                                        justifyContent: 'center',
-                                                                        alignItems: 'center',
-                                                                        marginTop: 8,
-                                                                    }}
-                                                                    onPress={handleSaveBook}
-                                                                    disabled={!newBookName.trim()}
-                                                                >
-                                                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
-                                                                        ✓ Kitabı Kaydet ({accumulatedChapters.length} konu)
-                                                                    </Text>
-                                                                </TouchableOpacity>
-                                                            )}
-
-                                                            <Text style={{ color: '#64748b', fontSize: 11, textAlign: 'center', marginTop: 8 }}>
-                                                                Çok sayfalı içindekiler için birden fazla fotoğraf çekebilirsin.
-                                                            </Text>
-                                                        </View>
-                                                    </View>
-                                                )}
 
                                                 {assignmentFlow === 'topic' && (
                                                     <View style={styles.topicForm}>
@@ -1578,27 +1584,33 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
 
                                                                             {isChapterExpanded && (
                                                                                 <View style={{ paddingLeft: 12, marginTop: 4 }}>
-                                                                                    {chapter.topics.map((topic, tIdx) => (
-                                                                                        <TouchableOpacity
-                                                                                            key={tIdx}
-                                                                                            style={{
-                                                                                                padding: 10,
-                                                                                                backgroundColor: '#1e293b40',
-                                                                                                borderRadius: 6,
-                                                                                                marginBottom: 2,
-                                                                                                flexDirection: 'row',
-                                                                                                justifyContent: 'space-between',
-                                                                                                alignItems: 'center'
-                                                                                            }}
-                                                                                            onPress={() => {
-                                                                                                setTopicToAssign({ book, topic });
-                                                                                                setShowBookAssignmentCalendar(true);
-                                                                                            }}
-                                                                                        >
-                                                                                            <Text style={{ color: '#94a3b8', fontSize: 13 }}>{topic}</Text>
-                                                                                            <Text style={{ color: '#a855f7', fontSize: 16 }}>+</Text>
-                                                                                        </TouchableOpacity>
-                                                                                    ))}
+                                                                                    {chapter.topics.map((topic, tIdx) => {
+                                                                                        const topicKey = `${book.name} - ${topic}`;
+                                                                                        const isDone = completedBookTopics.has(topicKey);
+                                                                                        return (
+                                                                                            <TouchableOpacity
+                                                                                                key={tIdx}
+                                                                                                style={{
+                                                                                                    padding: 10,
+                                                                                                    backgroundColor: isDone ? '#10b98122' : '#1e293b40',
+                                                                                                    borderRadius: 6,
+                                                                                                    marginBottom: 2,
+                                                                                                    flexDirection: 'row',
+                                                                                                    justifyContent: 'space-between',
+                                                                                                    alignItems: 'center',
+                                                                                                    borderLeftWidth: isDone ? 3 : 0,
+                                                                                                    borderLeftColor: '#10b981',
+                                                                                                }}
+                                                                                                onPress={() => {
+                                                                                                    setTopicToAssign({ book, topic });
+                                                                                                    setShowBookAssignmentCalendar(true);
+                                                                                                }}
+                                                                                            >
+                                                                                                <Text style={{ color: isDone ? '#10b981' : '#94a3b8', fontSize: 13, fontWeight: isDone ? '600' : '400' }}>{isDone ? '✅ ' : ''}{topic}</Text>
+                                                                                                {!isDone && <Text style={{ color: '#a855f7', fontSize: 16 }}>+</Text>}
+                                                                                            </TouchableOpacity>
+                                                                                        );
+                                                                                    })}
                                                                                 </View>
                                                                             )}
                                                                         </View>
@@ -1612,83 +1624,7 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
                                         </View>
                                     )}
 
-                                    {/* Reuse the Add Book Modal rendering logic or pull it into a function */}
-                                    {showAddBookModal && (
-                                        <View style={{ marginTop: 20 }}>
-                                            <View style={{ backgroundColor: '#0f172a', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#a855f7' }}>
-                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                                                    <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800' }}>📑 Yeni Kitap Kaydı</Text>
-                                                    <TouchableOpacity onPress={() => { setShowAddBookModal(false); setAccumulatedChapters([]); setNewBookName(''); }}>
-                                                        <Text style={{ color: '#94a3b8', fontSize: 24 }}>✕</Text>
-                                                    </TouchableOpacity>
-                                                </View>
 
-                                                <Input
-                                                    label="Kitap Adı"
-                                                    value={newBookName}
-                                                    onChangeText={setNewBookName}
-                                                    placeholder="Örn: Limit Soru Bankası"
-                                                />
-
-                                                <Input
-                                                    label="Ders"
-                                                    value={newBookSubject}
-                                                    onChangeText={setNewBookSubject}
-                                                    placeholder="Örn: Matematik"
-                                                    style={{ marginTop: 12 }}
-                                                />
-
-                                                {accumulatedChapters.length > 0 && (
-                                                    <View style={{ backgroundColor: '#10b98115', padding: 12, borderRadius: 12, marginTop: 16, borderLeftWidth: 4, borderLeftColor: '#10b981' }}>
-                                                        <Text style={{ color: '#10b981', fontWeight: '700', fontSize: 14 }}>
-                                                            ✅ {accumulatedChapters.length} Ünite Analiz Edildi
-                                                        </Text>
-                                                        <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
-                                                            Başka sayfa varsa çekmeye devam edebilirsin.
-                                                        </Text>
-                                                    </View>
-                                                )}
-
-                                                <View style={{ marginTop: 24, gap: 10 }}>
-                                                    <TouchableOpacity
-                                                        style={{
-                                                            backgroundColor: isAnalyzingToc ? '#334155' : '#a855f7',
-                                                            padding: 16,
-                                                            borderRadius: 12,
-                                                            flexDirection: 'row',
-                                                            justifyContent: 'center',
-                                                            alignItems: 'center',
-                                                        }}
-                                                        onPress={handleTakePhoto}
-                                                        disabled={isAnalyzingToc}
-                                                    >
-                                                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>
-                                                            {isAnalyzingToc ? '🤖 AI Analiz Ediyor...' : (accumulatedChapters.length > 0 ? '📷 Başka Sayfa Çek' : '📷 İçindekiler Fotoğrafı Çek')}
-                                                        </Text>
-                                                    </TouchableOpacity>
-
-                                                    {accumulatedChapters.length > 0 && (
-                                                        <TouchableOpacity
-                                                            style={{
-                                                                backgroundColor: '#10b981',
-                                                                padding: 16,
-                                                                borderRadius: 12,
-                                                                flexDirection: 'row',
-                                                                justifyContent: 'center',
-                                                                alignItems: 'center',
-                                                            }}
-                                                            onPress={handleSaveBook}
-                                                            disabled={!newBookName.trim()}
-                                                        >
-                                                            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>
-                                                                ✓ Kitabı Kütüphaneye Ekle
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                    )}
-                                                </View>
-                                            </View>
-                                        </View>
-                                    )}
                                 </View>
                             )}
 
@@ -2117,12 +2053,28 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
                                         </View>
                                     )}
 
-                                    {/* Simple Chart - Only if data exists */}
+                                    {/* Simplified Exam Trend - Redirect to Reports */}
                                     {studentBehavior.exams.length > 0 && (
-                                        <ExamTrendCard
-                                            exams={studentBehavior.exams}
-                                            onAddPress={() => { }}
-                                        />
+                                        <TouchableOpacity
+                                            style={{
+                                                backgroundColor: '#1e293b',
+                                                borderRadius: 12,
+                                                padding: 16,
+                                                flexDirection: 'row',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                borderWidth: 1,
+                                                borderColor: 'rgba(168, 85, 247, 0.4)',
+                                                marginTop: 8
+                                            }}
+                                            onPress={() => setActiveTab('reports')}
+                                        >
+                                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                <Text style={{ fontSize: 18, marginRight: 12 }}>📈</Text>
+                                                <Text style={{ color: '#e2e8f0', fontSize: 15, fontWeight: '600' }}>Sınav Analizlerini Gör</Text>
+                                            </View>
+                                            <Text style={{ color: '#a855f7', fontWeight: 'bold' }}>→</Text>
+                                        </TouchableOpacity>
                                     )}
                                 </View>
                             )}
@@ -2140,18 +2092,73 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
                                             <SelectItem key={g} label={`${g}. Sınıf`} value={String(g)} />
                                         ))}
                                     </Select>
-                                    <Select label="Sınav Türü" value={studentExamType} onValueChange={setStudentExamType}>
+                                    <Select label="Sınav Türü" value={studentExamType} onValueChange={(val) => {
+                                        setStudentExamType(val);
+                                        const newField = val === EXAM_TYPES.TYT_AYT ? studentField : '';
+                                        if (val !== EXAM_TYPES.TYT_AYT) setStudentField('');
+                                        setTempSubjects(getSubjectsForStudent(val, newField));
+                                    }}>
                                         {Object.values(EXAM_TYPES).map(et => (
                                             <SelectItem key={et} label={et} value={et} />
                                         ))}
                                     </Select>
                                     {studentExamType === EXAM_TYPES.TYT_AYT && (
-                                        <Select label="Alan" value={studentField} onValueChange={setStudentField}>
+                                        <Select label="Alan" value={studentField} onValueChange={(val) => {
+                                            setStudentField(val);
+                                            setTempSubjects(getSubjectsForStudent(studentExamType, val));
+                                        }}>
                                             {Object.values(AYT_FIELDS).map(f => (
                                                 <SelectItem key={f} label={f} value={f} />
                                             ))}
                                         </Select>
                                     )}
+                                    {/* Subject Assignment Toggle */}
+                                    {studentExamType !== EXAM_TYPES.GENEL_TAKIP && (
+                                        <View style={{ marginTop: 16 }}>
+                                            <Text style={{ color: '#e2e8f0', fontSize: 15, fontWeight: '700', marginBottom: 4 }}>📚 Atanan Dersler</Text>
+                                            <Text style={{ color: '#64748b', fontSize: 12, marginBottom: 12 }}>
+                                                Öğrencinin takip edeceği dersleri seçin. Konular, soru ekleme ve deneme girişi bu derslere göre şekillenir.
+                                            </Text>
+                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                                {getSubjectsForStudent(studentExamType, studentField).map(subj => {
+                                                    const isActive = tempSubjects.includes(subj);
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={subj}
+                                                            onPress={() => {
+                                                                setTempSubjects(prev =>
+                                                                    prev.includes(subj)
+                                                                        ? prev.filter(s => s !== subj)
+                                                                        : [...prev, subj]
+                                                                );
+                                                            }}
+                                                            style={{
+                                                                flexDirection: 'row',
+                                                                alignItems: 'center',
+                                                                paddingHorizontal: 12,
+                                                                paddingVertical: 8,
+                                                                borderRadius: 20,
+                                                                backgroundColor: isActive ? '#a855f722' : '#1e293b',
+                                                                borderWidth: 1,
+                                                                borderColor: isActive ? '#a855f7' : '#334155',
+                                                            }}
+                                                        >
+                                                            <Text style={{ color: isActive ? '#a855f7' : '#64748b', fontSize: 14, marginRight: 6 }}>
+                                                                {isActive ? '✓' : '○'}
+                                                            </Text>
+                                                            <Text style={{ color: isActive ? '#e2e8f0' : '#94a3b8', fontSize: 13, fontWeight: '600' }}>
+                                                                {subj}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+                                            </View>
+                                            <Text style={{ color: '#475569', fontSize: 11, marginTop: 8 }}>
+                                                {tempSubjects.length} ders seçili
+                                            </Text>
+                                        </View>
+                                    )}
+
                                     <Button onPress={handleUpdateStudent} style={styles.submitButton}>
                                         <Text style={styles.buttonText}>Bilgileri Güncelle</Text>
                                     </Button>
@@ -2353,10 +2360,133 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
                 </View>
             </Modal>
 
+            {/* Add Book Popup Modal */}
+            <Modal
+                isOpen={showAddBookModal}
+                onClose={() => { setShowAddBookModal(false); setAccumulatedChapters([]); setNewBookName(''); setNewBookSubject(''); }}
+                title="📚 Yeni Kitap Ekle"
+            >
+                <View style={{ gap: 12 }}>
+                    <Input
+                        label="Kitap Adı"
+                        value={newBookName}
+                        onChangeText={setNewBookName}
+                        placeholder="Örn: TYT Matematik Soru Bankası"
+                    />
+
+                    <Input
+                        label="Ders (Opsiyonel)"
+                        value={newBookSubject}
+                        onChangeText={setNewBookSubject}
+                        placeholder="Örn: Matematik"
+                    />
+
+                    {/* Topic Listing with Approval */}
+                    {accumulatedChapters.length > 0 && (
+                        <View style={{ backgroundColor: '#10b98115', padding: 14, borderRadius: 12, borderLeftWidth: 4, borderLeftColor: '#10b981' }}>
+                            <Text style={{ color: '#10b981', fontWeight: '800', fontSize: 15, marginBottom: 8 }}>
+                                ✅ {accumulatedChapters.length} Ünite, {accumulatedChapters.reduce((acc, c) => acc + c.topics.length, 0)} Konu Bulundu
+                            </Text>
+
+                            {/* Chapter & Topic List */}
+                            {accumulatedChapters.map((chapter, cIdx) => (
+                                <View key={cIdx} style={{ marginTop: cIdx > 0 ? 10 : 4 }}>
+                                    <Text style={{ color: '#e2e8f0', fontSize: 14, fontWeight: '700', marginBottom: 4 }}>
+                                        📁 {chapter.title}
+                                    </Text>
+                                    {chapter.topics.map((topic, tIdx) => (
+                                        <Text key={tIdx} style={{ color: '#94a3b8', fontSize: 12, paddingLeft: 16, paddingVertical: 2 }}>
+                                            • {topic}
+                                        </Text>
+                                    ))}
+                                </View>
+                            ))}
+
+                            <Text style={{ color: '#64748b', fontSize: 11, marginTop: 10 }}>
+                                Konuları onaylıyor musunuz? Hatalıysa tekrar fotoğraf çekebilirsiniz.
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* Action Buttons */}
+                    <View style={{ gap: 10, marginTop: 4 }}>
+                        {/* Take Photo / Retake */}
+                        <TouchableOpacity
+                            style={{
+                                backgroundColor: isAnalyzingToc ? '#334155' : '#a855f7',
+                                padding: 16,
+                                borderRadius: 12,
+                                flexDirection: 'row',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                            }}
+                            onPress={() => {
+                                if (accumulatedChapters.length > 0) {
+                                    // Retake: clear previous results and open camera
+                                    setAccumulatedChapters([]);
+                                }
+                                handleTakePhoto();
+                            }}
+                            disabled={isAnalyzingToc}
+                        >
+                            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>
+                                {isAnalyzingToc ? '🤖 AI Analiz Ediyor...' : (accumulatedChapters.length > 0 ? '📷 Beğenmedim, Tekrar Çek' : '📷 İçindekiler Fotoğrafı Çek')}
+                            </Text>
+                        </TouchableOpacity>
+
+                        {/* Add Another Page */}
+                        {accumulatedChapters.length > 0 && (
+                            <TouchableOpacity
+                                style={{
+                                    backgroundColor: '#1e293b',
+                                    padding: 14,
+                                    borderRadius: 12,
+                                    flexDirection: 'row',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                    borderWidth: 1,
+                                    borderColor: '#475569',
+                                }}
+                                onPress={handleTakePhoto}
+                                disabled={isAnalyzingToc}
+                            >
+                                <Text style={{ color: '#94a3b8', fontWeight: '700', fontSize: 14 }}>
+                                    📄 Başka Sayfa Ekle
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+
+                        {/* Approve & Save */}
+                        {accumulatedChapters.length > 0 && (
+                            <TouchableOpacity
+                                style={{
+                                    backgroundColor: newBookName.trim() ? '#10b981' : '#334155',
+                                    padding: 16,
+                                    borderRadius: 12,
+                                    flexDirection: 'row',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                }}
+                                onPress={handleSaveBook}
+                                disabled={!newBookName.trim()}
+                            >
+                                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>
+                                    ✓ Konuları Onayla ve Kaydet
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    <Text style={{ color: '#64748b', fontSize: 11, textAlign: 'center' }}>
+                        Çok sayfalı içindekiler için "Başka Sayfa Ekle" butonunu kullanabilirsiniz.
+                    </Text>
+                </View>
+            </Modal>
+
             {/* Bottom Navigation Bar - Only when student is selected */}
             {
                 selectedStudent && (
-                    <View style={styles.bottomNavBar}>
+                    <View style={[styles.bottomNavBar, { paddingBottom: insets.bottom || 8 }]}>
                         {[
                             { id: 'activity', label: 'Aktivite', icon: '🔥' },
                             { id: 'assignments', label: 'Ödevler', icon: '📝' },
@@ -2380,6 +2510,59 @@ export const CoachDashboardScreen: React.FC<Props> = ({ navigation }) => {
             }
             {/* PREMIUM: Subscription CTA Bar */}
             {!selectedStudent && <SubscriptionCTABar />}
+
+            {/* Coach Message Modal */}
+            <Modal
+                isOpen={!!messageModalStudent}
+                onClose={() => { setMessageModalStudent(null); setCoachMessage(''); }}
+                title={`💬 ${messageModalStudent?.name || 'Öğrenci'}'ye Mesaj`}
+            >
+                <View style={{ gap: 12 }}>
+                    <Text style={{ color: '#94a3b8', fontSize: 13 }}>
+                        Mesajınız öğrencinin telefonuna bildirim olarak gönderilecek.
+                    </Text>
+
+                    <Input
+                        label="Mesajınız"
+                        value={coachMessage}
+                        onChangeText={setCoachMessage}
+                        placeholder="Örn: Bugün ödevlerini tamamlamayı unutma!"
+                        multiline
+                        numberOfLines={4}
+                    />
+
+                    <TouchableOpacity
+                        style={{
+                            backgroundColor: coachMessage.trim() && !isSendingMessage ? '#8b5cf6' : '#334155',
+                            padding: 16,
+                            borderRadius: 12,
+                            alignItems: 'center',
+                        }}
+                        onPress={async () => {
+                            if (!coachMessage.trim() || !messageModalStudent || !currentUser) return;
+                            setIsSendingMessage(true);
+                            const result = await sendCoachMessage(
+                                messageModalStudent.id,
+                                currentUser.id,
+                                coachMessage.trim()
+                            );
+                            setIsSendingMessage(false);
+                            if (result.success) {
+                                Alert.alert('✅ Gönderildi', `${messageModalStudent.name}'ye bildirim gönderildi.`);
+                                setMessageModalStudent(null);
+                                setCoachMessage('');
+                            } else {
+                                Alert.alert('Hata', result.error || 'Mesaj gönderilemedi.');
+                            }
+                        }}
+                        disabled={!coachMessage.trim() || isSendingMessage}
+                    >
+                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>
+                            {isSendingMessage ? '📤 Gönderiliyor...' : '📩 Bildirim Gönder'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </Modal>
 
             {/* PREMIUM: Upgrade Modal */}
             <UpgradeModal />
@@ -2427,12 +2610,17 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
     logoutButton: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(239, 68, 68, 0.15)',
+        borderWidth: 1.5,
+        borderColor: 'rgba(239, 68, 68, 0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     logoutText: {
-        color: '#fff',
-        fontSize: 14,
+        fontSize: 18,
     },
     content: {
         flex: 1,
@@ -3586,7 +3774,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(15, 23, 42, 0.95)',
         borderTopWidth: 1,
         borderTopColor: 'rgba(255, 255, 255, 0.08)',
-        paddingVertical: 8,
+        paddingTop: 8,
         paddingHorizontal: 8,
         justifyContent: 'space-around',
         position: 'absolute',

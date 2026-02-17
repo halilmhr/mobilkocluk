@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 
 interface DailyQuestionsCardProps {
     subjects: string[];
@@ -31,18 +31,22 @@ export const DailyQuestionsCard: React.FC<DailyQuestionsCardProps> = ({
     const totalQuestions = Object.values(counts).reduce((sum, val) => sum + (parseInt(val) || 0), 0);
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <View>
-                    <Text style={styles.title}>📝 Soru Çözümü</Text>
-                    <Text style={styles.subtitle}>Bugün toplam {totalQuestions} soru</Text>
-                </View>
-                <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => setShowModal(true)}
-                >
-                    <Text style={styles.addButtonText}>Giriş Yap</Text>
-                </TouchableOpacity>
+        <TouchableOpacity
+            style={styles.container}
+            activeOpacity={0.7}
+            onPress={() => setShowModal(true)}
+        >
+            <View style={{
+                width: 40, height: 40, borderRadius: 12,
+                backgroundColor: 'rgba(0, 255, 255, 0.1)',
+                justifyContent: 'center', alignItems: 'center', marginBottom: 12,
+            }}>
+                <Text style={{ fontSize: 20 }}>📝</Text>
+            </View>
+            <Text style={styles.title}>Soru Çözümü</Text>
+            <Text style={styles.subtitle}>Bugün {totalQuestions} soru</Text>
+            <View style={styles.addButton}>
+                <Text style={styles.addButtonText}>Giriş Yap</Text>
             </View>
 
             {/* Modal */}
@@ -52,11 +56,15 @@ export const DailyQuestionsCard: React.FC<DailyQuestionsCardProps> = ({
                 animationType="slide"
                 onRequestClose={() => setShowModal(false)}
             >
-                <View style={styles.modalOverlay}>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+                    style={styles.modalOverlay}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+                >
                     <View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>Günlük Soru Sayıları</Text>
 
-                        <ScrollView style={styles.scrollArea}>
+                        <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
                             {subjects.map((subject) => (
                                 <View key={subject} style={styles.inputGroup}>
                                     <Text style={styles.subjectLabel}>{subject}</Text>
@@ -87,45 +95,42 @@ export const DailyQuestionsCard: React.FC<DailyQuestionsCardProps> = ({
                             </TouchableOpacity>
                         </View>
                     </View>
-                </View>
+                </KeyboardAvoidingView>
             </Modal>
-        </View>
+        </TouchableOpacity>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
+        flex: 1,
         backgroundColor: 'rgba(15, 23, 42, 0.95)',
         borderRadius: 20,
-        padding: 18,
-        marginBottom: 16,
+        padding: 16,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        borderColor: 'rgba(0, 255, 255, 0.2)',
     },
     title: {
         color: '#fff',
-        fontSize: 17,
+        fontSize: 15,
         fontWeight: '700',
         marginBottom: 4,
     },
     subtitle: {
-        color: '#94A3B8',
-        fontSize: 13,
+        color: 'rgba(255, 255, 255, 0.45)',
+        fontSize: 12,
+        lineHeight: 16,
     },
     addButton: {
-        backgroundColor: '#A855F7',
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 12,
+        marginTop: 12,
+        backgroundColor: '#00BFBF',
+        paddingVertical: 8,
+        borderRadius: 10,
+        alignItems: 'center' as const,
     },
     addButtonText: {
         color: '#fff',
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: '700',
     },
     modalOverlay: {

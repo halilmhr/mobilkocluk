@@ -3,7 +3,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal as RNModal, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal as RNModal, ScrollView, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { PREMIUM_COLORS } from '../styles/premiumStyles';
 
 interface CoachingItem {
@@ -14,25 +14,20 @@ interface CoachingItem {
 interface DailyCoachingStatusProps {
     behindCount: number;
     overdueCount: number;
-    inactiveCount: number;
     behindStudents: CoachingItem[];
     overdueItems: CoachingItem[];
-    inactiveStudents: CoachingItem[];
 }
 
 export const DailyCoachingStatus: React.FC<DailyCoachingStatusProps> = ({
     behindCount,
     overdueCount,
-    inactiveCount,
     behindStudents = [],
     overdueItems = [],
-    inactiveStudents = [],
 }) => {
     const [showBehindModal, setShowBehindModal] = useState(false);
     const [showOverdueModal, setShowOverdueModal] = useState(false);
-    const [showInactiveModal, setShowInactiveModal] = useState(false);
 
-    const totalWarnings = behindCount + overdueCount + inactiveCount;
+    const totalWarnings = behindCount + overdueCount;
 
     const renderModal = (
         visible: boolean,
@@ -48,8 +43,15 @@ export const DailyCoachingStatus: React.FC<DailyCoachingStatusProps> = ({
             animationType="fade"
             onRequestClose={onClose}
         >
-            <Pressable style={styles.modalOverlay} onPress={onClose}>
-                <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()}>
+            <View style={styles.modalOverlay}>
+                {/* Background Click to Close */}
+                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    style={styles.modalContent}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+                >
                     <View style={styles.modalHeader}>
                         <Text style={styles.modalIcon}>{icon}</Text>
                         <Text style={styles.modalTitle}>{title}</Text>
@@ -58,7 +60,12 @@ export const DailyCoachingStatus: React.FC<DailyCoachingStatusProps> = ({
                         </TouchableOpacity>
                     </View>
 
-                    <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+                    <ScrollView
+                        style={styles.modalBody}
+                        showsVerticalScrollIndicator={true}
+                        contentContainerStyle={{ paddingBottom: 24 }}
+                        nestedScrollEnabled={true}
+                    >
                         {items.length === 0 ? (
                             <Text style={styles.emptyText}>{emptyText}</Text>
                         ) : (
@@ -70,8 +77,8 @@ export const DailyCoachingStatus: React.FC<DailyCoachingStatusProps> = ({
                             ))
                         )}
                     </ScrollView>
-                </Pressable>
-            </Pressable>
+                </KeyboardAvoidingView>
+            </View>
         </RNModal>
     );
 
@@ -105,13 +112,6 @@ export const DailyCoachingStatus: React.FC<DailyCoachingStatusProps> = ({
                     <Text style={styles.statLabel}>görev gecikmiş</Text>
                     <Text style={styles.arrow}>→</Text>
                 </TouchableOpacity>
-
-                <TouchableOpacity style={styles.statRow} onPress={() => setShowInactiveModal(true)} activeOpacity={0.7}>
-                    <Text style={styles.statIcon}>😴</Text>
-                    <Text style={styles.statNumber}>{inactiveCount}</Text>
-                    <Text style={styles.statLabel}>öğrenci 3 gündür inaktif</Text>
-                    <Text style={styles.arrow}>→</Text>
-                </TouchableOpacity>
             </View>
 
             {/* Modals */}
@@ -130,14 +130,6 @@ export const DailyCoachingStatus: React.FC<DailyCoachingStatusProps> = ({
                 '📋',
                 overdueItems,
                 'Geciken görev yok'
-            )}
-            {renderModal(
-                showInactiveModal,
-                () => setShowInactiveModal(false),
-                'İnaktif Öğrenciler',
-                '😴',
-                inactiveStudents,
-                'İnaktif öğrenci yok'
             )}
         </View>
     );
@@ -209,14 +201,16 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.7)',
         justifyContent: 'center',
-        padding: 20,
+        padding: 24,
     },
     modalContent: {
         backgroundColor: '#1f2937',
-        borderRadius: 16,
-        maxHeight: '70%',
+        borderRadius: 24,
+        maxHeight: '92%',
+        width: '100%',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.1)',
+        overflow: 'hidden',
     },
     modalHeader: {
         flexDirection: 'row',

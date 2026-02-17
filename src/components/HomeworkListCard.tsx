@@ -11,11 +11,13 @@ interface Assignment {
 interface HomeworkListCardProps {
     assignments: Assignment[];
     onComplete: (id: string, difficulty: 'easy' | 'medium' | 'hard') => void;
+    title?: string;
 }
 
 export const HomeworkListCard: React.FC<HomeworkListCardProps> = ({
     assignments,
     onComplete,
+    title = '📝 Ödevlerim',
 }) => {
     const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
     const [showDifficultyModal, setShowDifficultyModal] = useState(false);
@@ -43,7 +45,7 @@ export const HomeworkListCard: React.FC<HomeworkListCardProps> = ({
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <Text style={styles.title}>📝 Ödevlerim</Text>
+                <Text style={styles.title}>{title}</Text>
                 <View style={styles.badge}>
                     <Text style={styles.badgeText}>{pendingAssignments.length} bekliyor</Text>
                 </View>

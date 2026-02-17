@@ -32,9 +32,10 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
                     onPress={onClose}
                 />
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
                     style={styles.keyboardView}
                     pointerEvents="box-none"
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
                 >
                     <View style={styles.container}>
                         <View style={styles.header}>
@@ -111,6 +112,6 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     content: {
-        maxHeight: 400,
+        flexShrink: 1,
     },
 });

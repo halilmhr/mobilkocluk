@@ -7,9 +7,11 @@ import {
     Modal,
     ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePremium } from '../context/PremiumContext';
 
 export const UpgradeModal: React.FC = () => {
+    const insets = useSafeAreaInsets();
     const { isUpgradeModalVisible, hideUpgradeModal, setIsPremium } = usePremium();
 
     const features = [
@@ -35,7 +37,7 @@ export const UpgradeModal: React.FC = () => {
             onRequestClose={hideUpgradeModal}
         >
             <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
+                <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 20) + 20 }]}>
                     {/* Header */}
                     <View style={styles.header}>
                         <TouchableOpacity style={styles.closeBtn} onPress={hideUpgradeModal}>
@@ -95,7 +97,6 @@ const styles = StyleSheet.create({
         backgroundColor: '#0F172A',
         borderTopLeftRadius: 28,
         borderTopRightRadius: 28,
-        paddingBottom: 40,
         maxHeight: '90%',
     },
     header: {

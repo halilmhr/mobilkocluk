@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { User, Student, UserRole, DailyLog, TrialExam, Assignment, Book } from '../types';
 import { getSubjectsForStudent, EXAM_TYPES, AYT_FIELDS } from '../constants';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { registerForPushNotifications, savePushToken, removePushToken } from '../lib/notificationService';
 
 const pseudoHash = (password: string) => `hashed_${password}`;
 
@@ -12,6 +13,7 @@ const useAppDataWithSupabase = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [useSupabase] = useState(isSupabaseConfigured());
+    const pushTokenRef = useRef<string | null>(null);
 
     useEffect(() => {
         const initializeData = async () => {
@@ -42,6 +44,19 @@ const useAppDataWithSupabase = () => {
                     const user = users.find(u => u.id === savedUserId);
                     if (user) {
                         setCurrentUser(user);
+
+                        // Register push notifications on session restore
+                        if (useSupabase) {
+                            try {
+                                const token = await registerForPushNotifications();
+                                if (token) {
+                                    pushTokenRef.current = token;
+                                    await savePushToken(user.id, token);
+                                }
+                            } catch (err) {
+                                console.error('[SessionRestore] Push token registration failed:', err);
+                            }
+                        }
                     } else {
                         await AsyncStorage.removeItem('current_user_id');
                     }
@@ -49,7 +64,7 @@ const useAppDataWithSupabase = () => {
             }
         };
         restoreSession();
-    }, [isLoading, users, currentUser]);
+    }, [isLoading, users, currentUser, useSupabase]);
 
     const loadDataFromAsyncStorage = async () => {
         const storedUsers = await AsyncStorage.getItem('app_users');
@@ -205,7 +220,29 @@ const useAppDataWithSupabase = () => {
     }, [useSupabase]);
 
     const login = useCallback(async (email: string, password: string): Promise<User | null> => {
-        const user = users.find(u => u.email === email && u.passwordHash === pseudoHash(password));
+        const hashedInput = pseudoHash(password);
+
+        // 1. Try local cache first
+        let user = users.find(u => u.email === email && u.passwordHash === hashedInput);
+
+        // 2. Fallback to direct Supabase query if not found locally (handles data loading delay)
+        if (!user && useSupabase) {
+            try {
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('email', email)
+                    .eq('passwordHash', hashedInput)
+                    .maybeSingle();
+
+                if (data && !error) {
+                    user = data as User;
+                }
+            } catch (err) {
+                console.error('[Login] Direct query failed:', err);
+            }
+        }
+
         if (user) {
             setCurrentUser(user);
             await AsyncStorage.setItem('current_user_id', user.id);
@@ -215,15 +252,37 @@ const useAppDataWithSupabase = () => {
                 await updateLastActive(user.id);
             }
 
+            // Register push notifications and save token
+            if (useSupabase) {
+                try {
+                    const token = await registerForPushNotifications();
+                    if (token) {
+                        pushTokenRef.current = token;
+                        await savePushToken(user.id, token);
+                    }
+                } catch (err) {
+                    console.error('[Login] Push token registration failed:', err);
+                }
+            }
+
             return user;
         }
         return null;
-    }, [users, updateLastActive]);
+    }, [users, updateLastActive, useSupabase]);
 
     const logout = useCallback(async () => {
+        // Remove push token on logout
+        if (currentUser && pushTokenRef.current && useSupabase) {
+            try {
+                await removePushToken(currentUser.id, pushTokenRef.current);
+            } catch (err) {
+                console.error('[Logout] Push token removal failed:', err);
+            }
+            pushTokenRef.current = null;
+        }
         setCurrentUser(null);
         await AsyncStorage.removeItem('current_user_id');
-    }, []);
+    }, [currentUser, useSupabase]);
 
     const addStudent = useCallback(async (
         studentData: Omit<Student, 'id' | 'assignments' | 'dailyLogs' | 'trialExams' | 'completedTopics' | 'books'>,

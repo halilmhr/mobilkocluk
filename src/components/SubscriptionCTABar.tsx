@@ -1,8 +1,10 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePremium } from '../context/PremiumContext';
 
 export const SubscriptionCTABar: React.FC = () => {
+    const insets = useSafeAreaInsets();
     const { isPremium, showUpgradeModal } = usePremium();
 
     if (isPremium) {
@@ -10,7 +12,7 @@ export const SubscriptionCTABar: React.FC = () => {
     }
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { bottom: 70 + insets.bottom }]}>
             <View style={styles.content}>
                 <View style={styles.textSection}>
                     <Text style={styles.headline}>⚡ Premium</Text>

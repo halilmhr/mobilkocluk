@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
 interface DayData {
     date: string; // YYYY-MM-DD format
@@ -7,21 +7,35 @@ interface DayData {
 }
 
 interface StreakCalendarProps {
-    productiveDays: string[]; // Array of YYYY-MM-DD strings
-    currentStreak: number;
+    selectedDate?: string;
+    onSelectDate?: (date: string) => void;
+    assignmentsByDate?: Record<string, any[]>;
 }
 
 export const StreakCalendar: React.FC<StreakCalendarProps> = ({
-    productiveDays,
-    currentStreak,
+    selectedDate,
+    onSelectDate,
+    assignmentsByDate = {},
 }) => {
     const today = new Date();
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
+    const [viewDate, setViewDate] = useState(new Date());
+    const currentMonth = viewDate.getMonth();
+    const currentYear = viewDate.getFullYear();
 
     const DAYS_TR = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
     const MONTHS_TR = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
         'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+
+    // Real today string for overdue comparison
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    const changeMonth = (offset: number) => {
+        setViewDate(prev => {
+            const next = new Date(prev);
+            next.setMonth(next.getMonth() + offset);
+            return next;
+        });
+    };
 
     const getDaysInMonth = (month: number, year: number) => {
         return new Date(year, month + 1, 0).getDate();
@@ -29,7 +43,7 @@ export const StreakCalendar: React.FC<StreakCalendarProps> = ({
 
     const getFirstDayOfMonth = (month: number, year: number) => {
         const day = new Date(year, month, 1).getDay();
-        return day === 0 ? 6 : day - 1; // Convert to Monday = 0
+        return day === 0 ? 6 : day - 1;
     };
 
     const formatDate = (day: number) => {
@@ -38,12 +52,8 @@ export const StreakCalendar: React.FC<StreakCalendarProps> = ({
         return `${currentYear}-${month}-${dayStr}`;
     };
 
-    const isProductive = (day: number) => {
-        return productiveDays.includes(formatDate(day));
-    };
-
     const isToday = (day: number) => {
-        return day === today.getDate();
+        return day === today.getDate() && currentMonth === today.getMonth() && currentYear === today.getFullYear();
     };
 
     const isFuture = (day: number) => {
@@ -70,13 +80,18 @@ export const StreakCalendar: React.FC<StreakCalendarProps> = ({
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <Text style={styles.title}>🔥 Çalışma Takvimi</Text>
-                <View style={styles.streakBadge}>
-                    <Text style={styles.streakText}>{currentStreak} gün seri</Text>
-                </View>
+                <Text style={styles.title}>📅 Ödev Takvimi</Text>
             </View>
 
-            <Text style={styles.monthLabel}>{MONTHS_TR[currentMonth]} {currentYear}</Text>
+            <View style={styles.monthNavRow}>
+                <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.monthNavButton}>
+                    <Text style={styles.monthNavArrow}>◀</Text>
+                </TouchableOpacity>
+                <Text style={styles.monthLabel}>{MONTHS_TR[currentMonth]} {currentYear}</Text>
+                <TouchableOpacity onPress={() => changeMonth(1)} style={styles.monthNavButton}>
+                    <Text style={styles.monthNavArrow}>▶</Text>
+                </TouchableOpacity>
+            </View>
 
             {/* Day Headers */}
             <View style={styles.dayHeaderRow}>
@@ -89,49 +104,65 @@ export const StreakCalendar: React.FC<StreakCalendarProps> = ({
             <View style={styles.calendarGrid}>
                 {weeks.map((week, weekIndex) => (
                     <View key={weekIndex} style={styles.weekRow}>
-                        {week.map((day, dayIndex) => (
-                            <View
-                                key={dayIndex}
-                                style={[
-                                    styles.dayCell,
-                                    day && isToday(day) ? styles.todayCell : null,
-                                ]}
-                            >
-                                {day && (
-                                    <>
-                                        <Text style={[
-                                            styles.dayNumber,
-                                            isToday(day) && styles.todayNumber,
-                                            isFuture(day) && styles.futureNumber,
-                                        ]}>
-                                            {day}
-                                        </Text>
-                                        {!isFuture(day) && (
-                                            <View style={[
-                                                styles.statusDot,
-                                                isProductive(day)
-                                                    ? styles.productiveDot
-                                                    : styles.missingDot
-                                            ]} />
+                        {week.map((day, dayIndex) => {
+                            if (!day) return <View key={dayIndex} style={styles.dayCell} />;
+
+                            const dateStr = formatDate(day);
+                            const isSel = selectedDate === dateStr;
+                            const isTodayDay = isToday(day);
+                            const isFut = isFuture(day);
+
+                            const dayAssignments = assignmentsByDate[dateStr] || [];
+                            const assignmentCount = dayAssignments.length;
+                            let bgColor: string | null = null;
+                            let dotColor: string | null = null;
+
+                            if (assignmentCount > 0) {
+                                const allDone = dayAssignments.every((a: any) => a.isCompleted);
+                                const hasOverdue = dayAssignments.some((a: any) => !a.isCompleted && dateStr < todayStr);
+                                if (hasOverdue) {
+                                    bgColor = 'rgba(239, 68, 68, 0.15)';
+                                    dotColor = '#ef4444';
+                                } else if (allDone) {
+                                    bgColor = 'rgba(16, 185, 129, 0.15)';
+                                    dotColor = '#10b981';
+                                } else {
+                                    bgColor = 'rgba(245, 158, 11, 0.12)';
+                                    dotColor = '#f59e0b';
+                                }
+                            }
+
+                            return (
+                                <TouchableOpacity
+                                    key={dayIndex}
+                                    style={[
+                                        styles.dayCell,
+                                        bgColor && !isSel ? { backgroundColor: bgColor, borderRadius: 10 } : null,
+                                        isSel && styles.selectedCell,
+                                        isTodayDay && !isSel && styles.todayCell,
+                                    ]}
+                                    onPress={() => onSelectDate?.(dateStr)}
+                                >
+                                    <Text style={[
+                                        styles.dayNumber,
+                                        isSel && styles.selectedNumber,
+                                        isTodayDay && !isSel && styles.todayNumber,
+                                        isFut && styles.futureNumber,
+                                    ]}>
+                                        {day}
+                                    </Text>
+                                    <View style={styles.dotRow}>
+                                        {assignmentCount > 0 && (
+                                            <View style={[styles.countBadge, { backgroundColor: isSel ? 'rgba(255,255,255,0.3)' : (dotColor || 'transparent') }]}>
+                                                <Text style={[styles.countText, isSel && { color: '#fff' }]}>{assignmentCount}</Text>
+                                            </View>
                                         )}
-                                    </>
-                                )}
-                            </View>
-                        ))}
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        })}
                     </View>
                 ))}
-            </View>
-
-            {/* Legend */}
-            <View style={styles.legend}>
-                <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, styles.productiveDot]} />
-                    <Text style={styles.legendText}>Verimli gün</Text>
-                </View>
-                <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, styles.missingDot]} />
-                    <Text style={styles.legendText}>Eksik gün</Text>
-                </View>
             </View>
         </View>
     );
@@ -168,11 +199,24 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '700',
     },
+    monthNavRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    monthNavButton: {
+        padding: 8,
+    },
+    monthNavArrow: {
+        color: '#A855F7',
+        fontSize: 16,
+        fontWeight: '700',
+    },
     monthLabel: {
         color: '#94A3B8',
         fontSize: 14,
         fontWeight: '600',
-        marginBottom: 16,
     },
     dayHeaderRow: {
         flexDirection: 'row',
@@ -200,51 +244,44 @@ const styles = StyleSheet.create({
     todayCell: {
         backgroundColor: 'rgba(168, 85, 247, 0.2)',
     },
+    selectedCell: {
+        backgroundColor: '#A855F7',
+    },
     dayNumber: {
         color: '#E2E8F0',
         fontSize: 13,
         fontWeight: '500',
-        marginBottom: 4,
+        marginBottom: 2,
     },
     todayNumber: {
         color: '#A855F7',
         fontWeight: '700',
     },
+    selectedNumber: {
+        color: '#FFFFFF',
+        fontWeight: 'bold',
+    },
     futureNumber: {
         color: '#475569',
     },
-    statusDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-    },
-    productiveDot: {
-        backgroundColor: '#10b981',
-    },
-    missingDot: {
-        backgroundColor: '#ef4444',
-    },
-    legend: {
+    dotRow: {
         flexDirection: 'row',
-        justifyContent: 'center',
-        gap: 24,
-        marginTop: 16,
-        paddingTop: 16,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.06)',
-    },
-    legendItem: {
-        flexDirection: 'row',
+        gap: 3,
+        height: 14,
         alignItems: 'center',
+        justifyContent: 'center',
     },
-    legendDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        marginRight: 8,
+    countBadge: {
+        minWidth: 14,
+        height: 14,
+        borderRadius: 7,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 3,
     },
-    legendText: {
-        color: '#64748b',
-        fontSize: 12,
+    countText: {
+        color: '#fff',
+        fontSize: 9,
+        fontWeight: '800',
     },
 });

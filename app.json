@@ -21,8 +21,18 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#111827"
       },
-      "package": "com.halilhoca.app"
+      "package": "com.halilhoca.app",
+      "googleServicesFile": "./google-services.json"
     },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#10b981"
+        }
+      ]
+    ],
     "updates": {
       "url": "https://u.expo.dev/61e87170-0dfb-4cf3-aff5-b9663624641c"
     },
